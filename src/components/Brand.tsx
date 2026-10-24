@@ -1,0 +1,1 @@
+export function BranchGlyph() { return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 7v18M9 18c0-7 14-2 14-11" fill="none" stroke="currentColor" strokeWidth="2.5"/><circle cx="9" cy="6" r="3"/><circle cx="9" cy="26" r="3"/><circle cx="23" cy="6" r="3"/></svg>; }

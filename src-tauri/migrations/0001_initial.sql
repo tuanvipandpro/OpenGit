@@ -1,0 +1,4 @@
+CREATE TABLE workspace(id TEXT PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 0, active_repo TEXT, active_worktree TEXT);
+CREATE TABLE repositories(id TEXT PRIMARY KEY, identity BLOB NOT NULL UNIQUE, common_path BLOB NOT NULL, bare INTEGER NOT NULL, opened TEXT NOT NULL);
+CREATE TABLE worktrees(id TEXT PRIMARY KEY, repo_id TEXT NOT NULL REFERENCES repositories(id) ON DELETE CASCADE, identity BLOB NOT NULL UNIQUE, root BLOB NOT NULL, git_dir BLOB NOT NULL, is_main INTEGER NOT NULL);
+CREATE TABLE operations(id TEXT PRIMARY KEY, snapshot TEXT NOT NULL);

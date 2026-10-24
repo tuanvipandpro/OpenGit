@@ -1,0 +1,568 @@
+{
+  "commands": [
+    {
+      "command": "get_environment",
+      "request": {},
+      "result": {
+        "ok": true,
+        "value": {
+          "contractVersion": "1",
+          "appVersion": "0.1.0",
+          "platform": "windows",
+          "git": {
+            "available": false,
+            "version": null
+          },
+          "credentialManager": {
+            "available": false,
+            "version": null
+          },
+          "openSsh": {
+            "available": false,
+            "version": null
+          },
+          "webView2": {
+            "available": true,
+            "version": null
+          },
+          "identity": {
+            "nameConfigured": false,
+            "emailConfigured": false
+          }
+        }
+      }
+    },
+    {
+      "command": "get_workspace",
+      "request": {},
+      "result": {
+        "ok": true,
+        "value": {
+          "id": "workspace-fixture",
+          "revision": "9007199254740993",
+          "repositories": [
+            {
+              "id": "repo-fixture",
+              "name": "Fixture",
+              "commonGitDirDisplay": "C:\\fixtures\\repo.git",
+              "isBare": false,
+              "availability": "available",
+              "worktrees": [
+                {
+                  "id": "worktree-fixture",
+                  "rootDisplay": "C:\\fixtures\\repo",
+                  "isMain": true
+                }
+              ],
+              "lastOpenedAt": "2026-10-24T00:00:00Z"
+            }
+          ],
+          "activeSelection": {
+            "repoId": "repo-fixture",
+            "worktreeId": "worktree-fixture"
+          }
+        }
+      }
+    },
+    {
+      "command": "choose_repository",
+      "request": {},
+      "result": {
+        "ok": true,
+        "value": null
+      }
+    },
+    {
+      "command": "inspect_repository",
+      "request": {
+        "repoId": "repo-fixture",
+        "worktreeId": "worktree-fixture",
+        "generation": "2"
+      },
+      "result": {
+        "ok": true,
+        "value": {
+          "repoId": "repo-fixture",
+          "worktreeId": "worktree-fixture",
+          "generation": "2",
+          "observedAt": "2026-10-24T00:00:00Z",
+          "isBare": false,
+          "head": {
+            "kind": "branch",
+            "branch": "main",
+            "oid": "opaque-object-id"
+          },
+          "status": [
+            {
+              "id": "entry-1",
+              "kind": "rename",
+              "pathDisplay": "new name.txt",
+              "previousPathDisplay": "old name.txt",
+              "indexStatus": "R",
+              "worktreeStatus": ".",
+              "submodule": false
+            }
+          ],
+          "isDirty": true,
+          "isShallow": false,
+          "remotes": [
+            {
+              "name": "origin",
+              "fetchUrlDisplay": null,
+              "pushUrlDisplay": null
+            }
+          ],
+          "identity": {
+            "nameConfigured": false,
+            "emailConfigured": false
+          },
+          "gitOperations": []
+        }
+      }
+    },
+    {
+      "command": "select_repository",
+      "request": {
+        "repoId": "repo-fixture",
+        "worktreeId": "worktree-fixture"
+      },
+      "result": {
+        "ok": true,
+        "value": {
+          "id": "workspace-fixture",
+          "revision": "9007199254740993",
+          "repositories": [
+            {
+              "id": "repo-fixture",
+              "name": "Fixture",
+              "commonGitDirDisplay": "C:\\fixtures\\repo.git",
+              "isBare": false,
+              "availability": "available",
+              "worktrees": [
+                {
+                  "id": "worktree-fixture",
+                  "rootDisplay": "C:\\fixtures\\repo",
+                  "isMain": true
+                }
+              ],
+              "lastOpenedAt": "2026-10-24T00:00:00Z"
+            }
+          ],
+          "activeSelection": {
+            "repoId": "repo-fixture",
+            "worktreeId": "worktree-fixture"
+          }
+        }
+      }
+    },
+    {
+      "command": "forget_repository",
+      "request": {
+        "repoId": "repo-fixture"
+      },
+      "result": {
+        "ok": true,
+        "value": {
+          "id": "workspace-fixture",
+          "revision": "9007199254740993",
+          "repositories": [
+            {
+              "id": "repo-fixture",
+              "name": "Fixture",
+              "commonGitDirDisplay": "C:\\fixtures\\repo.git",
+              "isBare": false,
+              "availability": "available",
+              "worktrees": [
+                {
+                  "id": "worktree-fixture",
+                  "rootDisplay": "C:\\fixtures\\repo",
+                  "isMain": true
+                }
+              ],
+              "lastOpenedAt": "2026-10-24T00:00:00Z"
+            }
+          ],
+          "activeSelection": {
+            "repoId": "repo-fixture",
+            "worktreeId": "worktree-fixture"
+          }
+        }
+      }
+    },
+    {
+      "command": "choose_clone_source",
+      "request": {},
+      "result": {
+        "ok": true,
+        "value": {
+          "sourceHandle": "local-fixture",
+          "display": "Local fixture"
+        }
+      }
+    },
+    {
+      "command": "choose_clone_destination",
+      "request": {},
+      "result": {
+        "ok": true,
+        "value": {
+          "destinationHandle": "destination-fixture",
+          "parentDisplay": "C:\\fixtures"
+        }
+      }
+    },
+    {
+      "command": "start_clone",
+      "request": {
+        "source": {
+          "kind": "local",
+          "sourceHandle": "local-fixture"
+        },
+        "destinationHandle": "destination-fixture",
+        "directoryName": "new"
+      },
+      "result": {
+        "ok": true,
+        "value": {
+          "id": "operation-fixture",
+          "sequence": "3",
+          "kind": "clone",
+          "state": "Queued",
+          "phase": "queue",
+          "repoId": null,
+          "worktreeId": null,
+          "sourceDisplay": "Local repository",
+          "destinationDisplay": "C:\\fixtures\\new",
+          "progress": null,
+          "canCancel": true,
+          "authPrompt": null,
+          "error": null,
+          "createdAt": "2026-10-24T00:00:00Z",
+          "updatedAt": "2026-10-24T00:00:00Z"
+        }
+      }
+    },
+    {
+      "command": "get_operations",
+      "request": {},
+      "result": {
+        "ok": true,
+        "value": {
+          "streamId": "stream-fixture",
+          "sequence": "3",
+          "operations": [
+            {
+              "id": "operation-fixture",
+              "sequence": "3",
+              "kind": "clone",
+              "state": "Queued",
+              "phase": "queue",
+              "repoId": null,
+              "worktreeId": null,
+              "sourceDisplay": "Local repository",
+              "destinationDisplay": "C:\\fixtures\\new",
+              "progress": null,
+              "canCancel": true,
+              "authPrompt": null,
+              "error": null,
+              "createdAt": "2026-10-24T00:00:00Z",
+              "updatedAt": "2026-10-24T00:00:00Z"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "command": "cancel_operation",
+      "request": {
+        "operationId": "operation-fixture"
+      },
+      "result": {
+        "ok": true,
+        "value": {
+          "id": "operation-fixture",
+          "sequence": "3",
+          "kind": "clone",
+          "state": "Cancelled",
+          "phase": "queue",
+          "repoId": null,
+          "worktreeId": null,
+          "sourceDisplay": "Local repository",
+          "destinationDisplay": "C:\\fixtures\\new",
+          "progress": null,
+          "canCancel": false,
+          "authPrompt": null,
+          "error": null,
+          "createdAt": "2026-10-24T00:00:00Z",
+          "updatedAt": "2026-10-24T00:00:00Z"
+        }
+      }
+    },
+    {
+      "command": "respond_auth_prompt",
+      "request": {
+        "operationId": "operation-fixture",
+        "promptHandle": "prompt-fixture",
+        "value": "yes"
+      },
+      "result": {
+        "ok": true,
+        "value": null
+      }
+    }
+  ],
+  "snapshots": [
+    {
+      "repoId": "repo-fixture",
+      "worktreeId": "worktree-fixture",
+      "generation": "2",
+      "observedAt": "2026-10-24T00:00:00Z",
+      "isBare": false,
+      "head": {
+        "kind": "branch",
+        "branch": "main",
+        "oid": "opaque-object-id"
+      },
+      "status": [
+        {
+          "id": "entry-1",
+          "kind": "rename",
+          "pathDisplay": "new name.txt",
+          "previousPathDisplay": "old name.txt",
+          "indexStatus": "R",
+          "worktreeStatus": ".",
+          "submodule": false
+        }
+      ],
+      "isDirty": true,
+      "isShallow": false,
+      "remotes": [
+        {
+          "name": "origin",
+          "fetchUrlDisplay": null,
+          "pushUrlDisplay": null
+        }
+      ],
+      "identity": {
+        "nameConfigured": false,
+        "emailConfigured": false
+      },
+      "gitOperations": []
+    },
+    {
+      "repoId": "repo-fixture",
+      "worktreeId": "worktree-fixture",
+      "generation": "2",
+      "observedAt": "2026-10-24T00:00:00Z",
+      "isBare": false,
+      "head": {
+        "kind": "unborn",
+        "branch": "main",
+        "oid": null
+      },
+      "status": [],
+      "isDirty": false,
+      "isShallow": false,
+      "remotes": [
+        {
+          "name": "origin",
+          "fetchUrlDisplay": null,
+          "pushUrlDisplay": null
+        }
+      ],
+      "identity": {
+        "nameConfigured": false,
+        "emailConfigured": false
+      },
+      "gitOperations": []
+    },
+    {
+      "repoId": "repo-fixture",
+      "worktreeId": null,
+      "generation": "2",
+      "observedAt": "2026-10-24T00:00:00Z",
+      "isBare": true,
+      "head": {
+        "kind": "detached",
+        "branch": null,
+        "oid": "opaque-object-id"
+      },
+      "status": [],
+      "isDirty": null,
+      "isShallow": false,
+      "remotes": [
+        {
+          "name": "origin",
+          "fetchUrlDisplay": null,
+          "pushUrlDisplay": null
+        }
+      ],
+      "identity": {
+        "nameConfigured": false,
+        "emailConfigured": false
+      },
+      "gitOperations": []
+    }
+  ],
+  "error": {
+    "ok": false,
+    "error": {
+      "code": "Certificate",
+      "message": "Certificate verification failed.",
+      "phase": "transfer",
+      "retry": "checkTrust"
+    }
+  },
+  "event": {
+    "streamId": "stream-fixture",
+    "sequence": "3",
+    "operation": {
+      "id": "operation-fixture",
+      "sequence": "3",
+      "kind": "clone",
+      "state": "Queued",
+      "phase": "queue",
+      "repoId": null,
+      "worktreeId": null,
+      "sourceDisplay": "Local repository",
+      "destinationDisplay": "C:\\fixtures\\new",
+      "progress": null,
+      "canCancel": true,
+      "authPrompt": null,
+      "error": null,
+      "createdAt": "2026-10-24T00:00:00Z",
+      "updatedAt": "2026-10-24T00:00:00Z"
+    }
+  },
+  "enumValues": {
+    "ErrorCode": [
+      "InvalidRequest",
+      "InvalidHandle",
+      "NotFound",
+      "GitUnavailable",
+      "UnsupportedGit",
+      "NotRepository",
+      "RepositoryUnavailable",
+      "UnsafeRepository",
+      "DestinationExists",
+      "DestinationBusy",
+      "UnsafePath",
+      "InvalidSource",
+      "AuthenticationRequired",
+      "AuthenticationFailed",
+      "PermissionDenied",
+      "Network",
+      "Certificate",
+      "SshHostKey",
+      "SshAuthentication",
+      "Timeout",
+      "OutputLimit",
+      "MalformedOutput",
+      "ExternalChange",
+      "DiskFull",
+      "Io",
+      "Database",
+      "Interrupted",
+      "Internal"
+    ],
+    "Phase": [
+      "validation",
+      "discovery",
+      "inspection",
+      "queue",
+      "authentication",
+      "transfer",
+      "checkout",
+      "verification",
+      "publish",
+      "registration",
+      "recovery"
+    ],
+    "GitOperation": [
+      "merge",
+      "rebase",
+      "cherryPick",
+      "revert",
+      "bisect",
+      "sequencer"
+    ],
+    "PathStatus": [
+      ".",
+      "M",
+      "T",
+      "A",
+      "D",
+      "R",
+      "C",
+      "U",
+      "?",
+      "!"
+    ],
+    "OperationState": [
+      "Queued",
+      "Running",
+      "WaitingForUser",
+      "Cancelling",
+      "Succeeded",
+      "Failed",
+      "Cancelled",
+      "Interrupted"
+    ],
+    "AppErrorRetry": [
+      "none",
+      "retry",
+      "chooseAnotherDestination",
+      "checkCredentials",
+      "checkNetwork",
+      "checkTrust",
+      "reopenRepository"
+    ],
+    "EnvironmentContractVersion": [
+      "1"
+    ],
+    "EnvironmentPlatform": [
+      "windows"
+    ],
+    "RepositorySummaryAvailability": [
+      "available",
+      "missing",
+      "unavailable"
+    ],
+    "HeadKind": [
+      "branch",
+      "detached",
+      "unborn"
+    ],
+    "StatusEntryKind": [
+      "ordinary",
+      "rename",
+      "unmerged",
+      "untracked",
+      "ignored"
+    ],
+    "AuthPromptKind": [
+      "username",
+      "password",
+      "passphrase",
+      "confirmation"
+    ],
+    "ProgressUnit": [
+      "objects",
+      "bytes",
+      "steps"
+    ],
+    "OperationSnapshotKind": [
+      "clone"
+    ]
+  },
+  "cloneSources": [
+    {
+      "kind": "remote",
+      "url": "https://example.invalid/fixture.git"
+    },
+    {
+      "kind": "local",
+      "sourceHandle": "local-fixture"
+    }
+  ]
+}

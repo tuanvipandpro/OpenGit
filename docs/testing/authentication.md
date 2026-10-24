@@ -1,0 +1,54 @@
+# GUI authentication adapter 0.1.0
+
+Packet09 hiện thực broker askpass Windows trong `src-tauri/src/auth/`; đây không phải chứng nhận mọi provider/GCM/SSO hoạt động. Live native acceptance và trạng thái từng transport do orchestrator ghi riêng trong `0.1.0-acceptance.md`.
+
+## Ranh giới
+
+- Launch thường mở UI. Main chỉ vào helper khi có explicit `OPENGIT_INTERNAL_ASKPASS`; marker sai hoặc thiếu pipe/nonce hợp lệ làm helper exit lỗi, không mở webview.
+- Broker tạo named pipe ngẫu nhiên với protected DACL chỉ current-user SID, `PIPE_REJECT_REMOTE_CLIENTS` và first-instance guard. Nonce là hai UUIDv4 độc lập. Source/destination/prompt capabilities cũng dùng hai UUIDv4, không nhầm 128-bit UUID length với số bit ngẫu nhiên.
+- Windows lấy client PID qua `GetNamedPipeClientProcessId`; broker mở process handle và kiểm `IsProcessInJob` với đúng owned job. Biết nonce cũng không đủ nếu process không thuộc job. Runner spawn suspended, gán job và gọi callback bind broker trước `ResumeThread`; không dựa vào PID lưu trong journal.
+- Job không cho breakaway; runner có termination guard kể cả khi broker giữ thêm job handle. Cancel chỉ dừng cây Git/helper do ứng dụng tạo. Không nhận PID để kill qua IPC, không kill SSH agent/browser dùng chung.
+- Khi Git parent thoát, runner terminate owned job ngay trước khi đợi pipe EOF (descendant có thể giữ inherited pipe). Trước return, runner query `JobObjectBasicAccountingInformation` đến `ActiveProcesses == 0`, deadline5 giây; guard vẫn là fallback. Không xác nhận dừng được thì clone giữ intent/staging, fail closed và Interrupted/Recovery kể cả cancel token đã được đặt. Probe actual detached child kiểm process đã dừng ngay lúc return, không late write và bystander ngoài job vẫn sống.
+- Inspection giữ chế độ không tương tác. Clone dùng Git credential helpers/GCM và OpenSSH đang cấu hình, `GIT_TERMINAL_PROMPT=0`, askpass riêng và scoped `LC_ALL=C`/`LANG=C`. Không sửa global config, CA/proxy, certificate verification hoặc SSH host verification.
+
+## Prompts và secret
+
+Prompt Git/SSH không tin cậy được phân loại thành username/password/passphrase/confirmation templates; không đưa raw prompt hoặc URL vào UI/log/database. Host confirmation chỉ được hiển thị khi prompt cung cấp host và SHA256 fingerprint hợp lệ; thiếu metadata thì fail closed, không tự chấp nhận host key.
+
+Mỗi handle gắn window + operation, một lần, expiry120 giây. Sai scope/replay/expired/cancelled/closed-window bị từ chối. Response tối đa8192 UTF-8 bytes, không NUL/CR/LF; confirmation chỉ `yes`/`no`. Backend kiểm giới hạn request JSON16KiB bằng counting writer, không tạo bản sao JSON chứa secret.
+
+Response di chuyển qua `Zeroizing<Vec<u8>>` và oneshot channel, rồi pipe riêng; helper chỉ ghi response vào stdout để Git đọc. Trước khi release, scheduler kiểm state Running và cancellation/session dưới cùng mutex với cancel. Nếu cancel thắng, response bị bỏ và pipe không nhận secret. SQLite không lưu prompt hoặc response. Đây là giảm thời gian tồn tại và số bản sao secret, không bảo đảm xóa mọi bản sao trong frontend, allocator hoặc OS.
+
+## Evidence tự động
+
+`auth_boundary` có bốn test: executable fixture link helper thật dưới đường dẫn có space/Unicode/apostrophe; PID không sở hữu, scope/replay/cancel/request size/canary; actual Git `credential fill` yêu cầu hai prompt qua helper thật không dùng mạng; Windows OpenSSH `ssh-keygen.exe -y` giải mã owned encrypted key qua passphrase prompt thật. `GIT_ASKPASS` giữ native absolute path gốc, không thêm shell quoting. Git chạy argv helper trực tiếp; pre-quoting làm actual Git không mở được helper. Prompt test kiểm actual host/fingerprint template và unknown prompt.
+
+Windows OpenSSH không mở được helper Unicode trong probe thực tế. `SSH_ASKPASS` dùng nguyên đường dẫn ASCII nếu có; nếu không, dùng `GetShortPathNameW` với buffer động. Alias phải tuyệt đối, ASCII và cùng volume/file ID với executable gốc. Không copy helper. Acquisition snapshot identity, giữ ancestor handles từ root xuống rồi mở leaf no-follow, từ chối reparse/identity substitution. File pin yêu cầu READ_DATA, ancestor LIST_DIRECTORY|TRAVERSE, share không DELETE; attribute-only file handle không đủ chặn rename trong probe. Original và alias guards sống trong AuthSession và RunOptions qua confirmed job stop. Test chèn parent replacement giữa acquisition giữ nguyên cả hai sentinels và từ chối helper.
+
+Không có ASCII alias hợp lệ ⇒ SSH prompt capability absent, `SSH_ASKPASS_REQUIRE=never`, helper SSH rỗng và không TTY; `GIT_ASKPASS` gốc vẫn hoạt động. Không chặn trước mọi clone. Chỉ source đã validate thành SSH và lỗi auth/host-key nhận thêm thông báo static về installation path; HTTPS/CA/network không nhận thông báo đó. Sanitizer bảo toàn cả notice này và retention notice, không giữ raw message. Test resolver API lỗi/alias vẫn Unicode/sai identity kiểm fail closed; fallback thật chạy Windows OpenSSH unencrypted-key không cần prompt. Đây chưa phải proof actual known-host agent transport khi alias unavailable; native matrix ghi riêng, không coi no-prompt keygen tương đương SSH agent.
+
+Nếu job stop không xác nhận trong deadline, chỉ pure file lease được giữ tới process exit để không nhả pin khi child còn có thể chạy. Không giữ Backend, SQLite hoặc secret. Backend fail closed ngăn start mới; sau khi lấy scheduler locks/network permit, mỗi queued worker kiểm readiness lại trước Stage.create/AuthSession/spawn. Fault được ghi trước khi job nhả permit, nên tối đa hai worker đã admission có thể giữ lease trong native flow, queued jobs không tạo lease mới. Test có hai owned controlled processes đang chờ và một remote job queued, inject qua existing internal fail_closed API rồi nhả permit: queued job Interrupted/Database, không staging/clone spawn, IPC mới bị chặn, worker active còn lại giữ state gốc đến cancel/quiescence. Test không tuyên bố đã gây lỗi OS QueryInformation thật. Không có global lease registry/timer. Confirmed cancel test chứng minh runner giữ lease sau caller release rồi nhả sau job quiescence. Đường OS không xác nhận dừng được không được giả lập thành một kết quả termination thành công.
+
+Unit tests đọc DACL thật của pipe từ Windows, kiểm protected single current-user ACE; expiry/cancel/window-close kiểm response channel không nhận secret. Một barrier riêng trong unit fixture dừng đúng sau nhận response, cho cancel thắng trước release và chứng minh client nhận EOF, không có response bytes. Expiry test dùng deadline đã hết hạn trong state fixture, không chờ120 giây. Không thêm IPC test backdoor.
+
+```powershell
+. .\scripts\dev-env.ps1
+cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --offline --test auth_boundary
+cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --offline --lib auth::pipe::tests
+```
+
+Những kiểm tra này không chứng minh live private clone, browser/SSO, enterprise proxy/CA, remote-user ACL hay mọi prompt của mọi OpenSSH/GCM version. Native acceptance phải dùng CA/host verification thật và secrets tổng hợp của fixture được phép. Orchestrator sở hữu server fixture `tests/e2e/support/live_remotes.py`; không sử dụng production credentials.
+
+## Clone publish/recovery evidence cần giữ
+
+Windows sandbox hiện tại không cho mở profile ancestor handle `Admin` (Win32 error5), trong khi cùng test ở normal desktop context mở được. Không bỏ ancestor guard để che lỗi sandbox. Các test handle/publish cần chạy trong context desktop đã được cho phép và báo đúng context.
+
+Relative-target `SetFileInformationByHandle` với `RootDirectory` đã trả Win32 error87 trong probe. Thiết kế được orchestrator chấp thuận dùng absolute UTF-16 target + NULL `RootDirectory`, source handle identity, toàn bộ ancestor no-delete handles, reparse recheck và `ReplaceIfExists=false` trong một call. Buffer có phép tính kích thước checked, căn chỉnh đúng, explicit UTF-16 NUL; `FileNameLength` không tính NUL. Probe cũ thiếu NUL từng trả success nhưng đổi sai tên; kết quả đó bị rút lại, không dùng làm evidence. Ma trận thay thế kiểm 60 trường hợp với cả bốn modulo4 của chiều dài tên tuyệt đối, space/Omega/supplementary/long leaf và target absent/file/directory. Nó kiểm đúng entries, identities, payload, collision sentinel và canary buffer ở debug/release. Production chỉ coi publish hoàn tất khi exact target identity khớp; trạng thái không chứng minh được giữ intent/data và fail closed.
+
+Staging tạo container trong parent đã pin, mở child bằng `OPEN_REPARSE_POINT` trước mọi marker/repository write, kiểm attributes/final path/scope/identity/empty rồi tạo marker exclusive. Trong transfer, repo handle dùng `READ_ATTRIBUTES|LIST_DIRECTORY|TRAVERSE`, share READ|WRITE nhưng không DELETE; initial DELETE pin làm tracked checkout báo không ở worktree nên không dùng. Sau Git dừng, chỉ repo read pin được release. Handle DELETE mới dùng no-follow, share READ và phải khớp identity ban đầu cùng reparse/final scope; khoảng chuyển không có mutation. Handle đã xác thực được giữ qua atomic publish hoặc empty-object disposition. Container/ancestor guards giữ nguyên. Substitution ở initial boundary và re-pin boundary được kiểm bằng ordinary directory lẫn junction; ngoài scope không nhận writes, Git không spawn khi initial pin thất bại, replacement không được publish/xóa.
+
+Không có recursive pathname deletion trong runtime/recovery. `FileDispositionInfo` chỉ xóa marker/đối tượng rỗng qua đúng handle đã xác thực, sau khi đóng handle cuối; nonempty hoặc ownership không chứng minh được được giữ lại. `CleanupDisposition` lưu riêng với phase và tương thích record cũ bằng serde default. Retained record không tự thử path deletion sau restart. Cảnh báo static hướng dẫn kiểm tra `.opengit-stage-*` trước manual removal được lưu và sanitize/reopen giữ nguyên. Clone đã publish vẫn Succeeded kèm warning; cancel/failure giữ outcome/error gốc kèm warning. Test restart chuyển cây retained, đặt replacement sentinel tại tên cũ, reopen lặp lại và kiểm cả hai cây nguyên vẹn. Không dùng overwrite/copy/delete fallback hoặc API undocumented.
+
+Mọi lỗi sau syscall rename thành công thuộc committed/uncertain recovery, gồm lỗi reanchor guard trong bộ nhớ. Execute ghi nhận cờ irreversible trước khi propagate publish result; không cleanup hoặc đổi `PublishIntent` sang Aborted ở nhánh này. Fault test ngay sau rename/trước reanchor kiểm exact target identity/payload, cancel không relabel, backend fail closed, rồi hai lần reopen cùng đăng ký một repository/selection ổn định.
+
+Tham chiếu API: [FILE_RENAME_INFO](https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_rename_info), [quy tắc rename/open handles](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_rename_information). Test evidence không tự đóng finding; reviewer độc lập xác nhận disposition cuối cùng.

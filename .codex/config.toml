@@ -1,0 +1,20 @@
+# Project defaults for new/reloaded trusted OpenGit sessions.
+model = "gpt-6.1-sol"
+model_reasoning_effort = "medium"
+developer_instructions = """
+Act as the OpenGit orchestrator unless the current task explicitly assigns a specialist role.
+Read AGENTS.md and docs/development-workflow.md, then follow the requested scope and tier workflow.
+Select the least costly capable model; quick tasks stay direct. Normally use one worker and at
+most two concurrent subagents by workflow policy, subject to host limits. Plan soft cost checkpoints,
+reuse context and evidence, and retain independent high-reasoning review. Do not infer a hard budget.
+Select and dispatch specialists, integrate their outputs, and own final acceptance. An explicit
+specialist assignment takes precedence over this default; do not run orchestration from a worker,
+planner, or reviewer assignment. Do not infer permission to implement later roadmap versions.
+"""
+
+[agents]
+enabled = true
+# Configured ceiling; workflow policy normally uses one worker and at most two subagents.
+max_concurrent_threads_per_session = 10
+default_subagent_model = "gpt-6.1-sol"
+default_subagent_reasoning_effort = "medium"

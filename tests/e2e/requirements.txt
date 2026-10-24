@@ -1,0 +1,4 @@
+# Test-only packages for real loopback HTTPS/SSH acceptance fixtures.
+asyncssh==2.24.1
+bcrypt==5.0.0
+cryptography==50.0.2

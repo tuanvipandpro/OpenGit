@@ -1,0 +1,27 @@
+# Generated application artifacts (future implementation)
+node_modules/
+dist/
+target/
+coverage/
+test-results/
+playwright-report/
+
+# Local secrets and machine-specific state
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.codex/local/
+.codex/cache/
+.codex/logs/
+.tmp/
+.tools/
+.pnpm-store/
+src-tauri/gen/
+__pycache__/
+*.pyc
+
+# Keep .codex/config.toml and .codex/agents tracked.

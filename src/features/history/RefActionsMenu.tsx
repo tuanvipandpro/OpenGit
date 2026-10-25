@@ -1,11 +1,13 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { HistoryFilter, HistoryRef } from '../../contracts/history';
+import type { ActionLaunch } from '../../stores/repositoryActions';
 import type { HistoryFilterAction } from './visibility';
 
 export type RefMenuTarget = { ref: HistoryRef; trigger: HTMLButtonElement; context: string | undefined };
-export function RefActionsMenu({ target, filter, onClose, onView, onFilter }: {
+export function RefActionsMenu({ target, filter, onClose, onView, onFilter, onAction }: {
   target: RefMenuTarget; filter: HistoryFilter; onClose: () => void;
+  onAction?: (launch: ActionLaunch) => void;
   onView: () => void; onFilter: (action: HistoryFilterAction) => void;
 }) {
   const menu = useRef<HTMLDivElement>(null), callbacks = useRef(onClose);
@@ -36,6 +38,11 @@ export function RefActionsMenu({ target, filter, onClose, onView, onFilter }: {
       else if (event.key === 'Tab') onClose();
       event.stopPropagation();
     }}>
+    {onAction && !target.ref.symbolicTarget && target.ref.kind !== 'stash' && <>
+      {target.ref.commitOid && <><button type="button" role="menuitem" onClick={() => onAction({ kind: 'branchCreate', refName: target.ref.name })}>Create branch here</button><button type="button" role="menuitem" onClick={() => onAction({ kind: 'tagCreate', refName: target.ref.name })}>Create tag here</button></>}
+      {target.ref.kind === 'local' && <><button type="button" role="menuitem" onClick={() => onAction({ kind: 'branchSwitch', refName: target.ref.name })}>Switch branch</button><button type="button" role="menuitem" onClick={() => onAction({ kind: 'branchRename', refName: target.ref.name })}>Rename branch</button><button type="button" role="menuitem" onClick={() => onAction({ kind: 'branchTracking', refName: target.ref.name })}>Set or unset upstream</button><button type="button" role="menuitem" onClick={() => onAction({ kind: 'branchDelete', refName: target.ref.name })}>Delete local branch</button></>}
+      {target.ref.kind === 'tag' && <button type="button" role="menuitem" onClick={() => onAction({ kind: 'tagDelete', refName: target.ref.name })}>Delete local tag</button>}
+    </>}
     <button type="button" role="menuitem" onClick={onView}>View commit</button>
     {target.ref.kind !== 'stash' && <><button type="button" role="menuitem" onClick={() => action(hidden ? 'show' : 'hide')}>{hidden ? 'Show' : 'Hide'}</button>
       <button type="button" role="menuitem" onClick={() => action(solo ? 'unsolo' : 'solo')}>{solo ? 'Remove from Solo' : 'Add to Solo'}</button></>}

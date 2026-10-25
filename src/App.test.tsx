@@ -7,6 +7,11 @@ import { createWorkspaceStore } from './stores/workspace';
 import type { Api } from './stores/workspace';
 import { createOperationsStore } from './stores/operations';
 import { createHistoryStore } from './stores/history';
+import { createRepositorySyncStore } from './stores/repositorySync';
+import { createRepositoryActionsStore } from './stores/repositoryActions';
+import { createRepositoryChangesStore } from './stores/repositoryChanges';
+import changesWire from '../fixtures/contracts/changes-wire.json';
+import refFixture from '../fixtures/contracts/ref-actions-wire.json';
 import type { Workspace, ToolInfo, Environment } from './contracts';
 import fixture from '../fixtures/contracts/wire.json';
 import { defaultRepositoryView } from './stores/historyView';
@@ -17,6 +22,10 @@ function makeServices(failed = false, git?: ToolInfo) {
   const empty = { ...workspace, revision: '0', repositories: [], activeSelection: null };
   const api = vi.fn(async (command: string, request: Record<string, unknown>) => {
     if (command === 'get_repository_view' || command === 'save_repository_view') return { ok: true, value: { scope: request.scope, viewRevision: '0', view: request.view ?? defaultRepositoryView() } };
+    if (command === 'get_repository_actions') return { ok: true, value: { scope: request.scope, snapshotId: 'catalog', observedAt: '', head: { kind: 'unborn', branch: 'main', oid: null }, branches: [], symbolicBranches: [], remotes: [], sync: { currentBranch: null, upstream: null, ahead: null, behind: null, completeness: 'complete' } } };
+    if (command === 'get_ref_actions') return { ok: true, value: { ...refFixture.catalog, scope: request.scope, catalogId: `refs-${(request.scope as import('./contracts').ActionScope).generation}` } };
+    if (command === 'get_repository_changes') return { ok:true,value:{...changesWire.catalog,scope:request.scope,catalogId:`changes-${(request.scope as import('./contracts').ActionScope).generation}`}};
+    if (command === 'resolve_ref_action_target') return { ok: true, value: { ...refFixture.resolved, scope: request.scope, catalogId: request.catalogId, kind: 'commit', displayName: 'HEAD' } };
     if (command === 'get_environment') return git ? { ok: true, value: { ...(fixture.commands[0].result.value as unknown as Environment), git } } : fixture.commands[0].result;
     if (command === 'get_workspace') return failed ? fixture.error : { ok: true, value: empty };
     if (command === 'choose_repository') return { ok: true, value: workspace };
@@ -28,8 +37,67 @@ function makeServices(failed = false, git?: ToolInfo) {
     if (command === 'get_operations') return { ok: true, value: { streamId: 'stream', sequence: '0', operations: [] } };
     throw Error('Unexpected command');
   }) as unknown as Api;
-  return { store: createWorkspaceStore(api, async () => () => {}), history: createHistoryStore(api), tasks: createOperationsStore(api, async () => () => {}), api };
+  return { changes:createRepositoryChangesStore(api),actions: createRepositoryActionsStore(api), sync: createRepositorySyncStore(api), store: createWorkspaceStore(api, async () => () => {}), history: createHistoryStore(api), tasks: createOperationsStore(api, async () => () => {}), api };
 }
+it('S5 changes commit form reuses the real interaction lease, keeps its draft through manual refresh, and retires on selection disposal',async()=>{
+    vi.useFakeTimers();const services=makeServices(),original=vi.mocked(services.api).getMockImplementation()!;
+    vi.mocked(services.api).mockImplementation(((command:string,request:Record<string,unknown>)=>command==='prepare_repository_action'?Promise.resolve({ok:true,value:{scope:request.scope,kind:'commit',planId:'commit-preview',expiresAt:'2099-01-01',warnings:[]}}):original(command as never,request as never)) as Api);
+    const view=render(<StrictMode><App {...services}/></StrictMode>);
+    try{
+        await act(async()=>services.store.getState().open());await act(async()=>fireEvent.click(screen.getByRole('button',{name:'Changes'})));
+        expect(screen.getByRole('region',{name:'Staged changes'})).toBeInTheDocument();const begin=vi.spyOn(services.store.getState(),'beginInteraction');
+        await act(async()=>fireEvent.click(screen.getByRole('button',{name:'Commit staged changes'})));expect(begin).toHaveBeenCalledOnce();
+        fireEvent.change(screen.getByLabelText('Commit message'),{target:{value:'keep commit draft'}});await act(async()=>fireEvent.click(screen.getByRole('button',{name:'Prepare'})));
+        expect(screen.getByRole('button',{name:'Execute'})).toBeEnabled();const reads=()=>vi.mocked(services.api).mock.calls.filter(([c])=>c==='inspect_repository').length,before=reads();
+        await act(async()=>{await vi.advanceTimersByTimeAsync(90_000);window.dispatchEvent(new Event('focus'));});expect(reads()).toBe(before);expect(screen.getByLabelText('Commit message')).toHaveValue('keep commit draft');
+        await act(async()=>fireEvent.click(screen.getByRole('button',{name:'Refresh context'})));expect(screen.getByLabelText('Commit message')).toHaveValue('keep commit draft');expect(screen.getByRole('button',{name:'Execute'})).toBeDisabled();expect(vi.mocked(services.api).mock.calls.filter(([c])=>c==='prepare_repository_action')).toHaveLength(1);
+        await act(async()=>services.store.getState().forget(services.store.getState().workspace!.activeSelection!.repoId));expect(screen.queryByRole('dialog')).not.toBeInTheDocument();expect(services.changes.getState().draft).toBe('');
+    }finally{view.unmount();vi.useRealTimers();}
+});
+it.each(['Failed','Interrupted'] as const)('S5 keeps queued commit draft and later edited text through %s outcome refresh',async terminal=>{
+    const services=makeServices(),original=vi.mocked(services.api).getMockImplementation()!;let operation:import('./contracts').OperationSnapshot|null=null;let sequence='0';
+    vi.mocked(services.api).mockImplementation((async(command:string,request:Record<string,unknown>)=>{
+        if(command==='prepare_repository_action')return{ok:true,value:{scope:request.scope,kind:'commit',planId:'queued-commit',expiresAt:'2099-01-01',warnings:[]}};
+        if(command==='execute_repository_action'){const scope=services.changes.getState().scope!;operation={...changesWire.result.operation,kind:'action',actionKind:'commit',repoId:scope.repoId,worktreeId:scope.worktreeId,state:'Queued',sequence:'1',outcome:undefined} as import('./contracts').OperationSnapshot;sequence='1';return{ok:true,value:operation};}
+        if(command==='get_operations')return{ok:true,value:{streamId:'stream',sequence,operations:operation?[operation]:[]}};
+        if(command==='get_change_action_outcome')return{ok:true,value:{operation,result:{commitOid:null,treeOid:null,failureReason:terminal==='Failed'?'hookOrNative':'recovery',artifactsRetained:false}}};
+        return original(command as never,request as never);
+    }) as Api);
+    const view=render(<App {...services}/>);
+    try{
+        await act(async()=>services.store.getState().open());await act(async()=>fireEvent.click(screen.getByRole('button',{name:'Changes'})));await act(async()=>fireEvent.click(screen.getByRole('button',{name:'Commit staged changes'})));
+        fireEvent.change(screen.getByLabelText('Commit message'),{target:{value:'original queued draft'}});await act(async()=>fireEvent.click(screen.getByRole('button',{name:'Prepare'})));await act(async()=>fireEvent.click(screen.getByRole('button',{name:'Execute'})));
+        expect(services.changes.getState().draft).toBe('original queued draft');await act(async()=>fireEvent.click(screen.getByRole('button',{name:'Commit staged changes'})));fireEvent.change(screen.getByLabelText('Commit message'),{target:{value:'new draft after ACK'}});
+        operation={...operation!,state:terminal,sequence:'2',outcome:{effects:terminal==='Failed'?'notApplied':'unknown',recovery:terminal==='Failed'?'none':'inspect',repositoryChanged:terminal==='Interrupted',cancellationRequested:false,observedAt:'2026-10-25T00:00:00Z'}};sequence='2';await act(async()=>services.tasks.getState().sync());await act(async()=>{});
+        expect(screen.getByLabelText('Commit message')).toHaveValue('new draft after ACK');expect(services.changes.getState().draft).toBe('new draft after ACK');expect(vi.mocked(services.api)).toHaveBeenCalledWith('get_change_action_outcome',{operationId:operation.id});expect(vi.mocked(services.api).mock.calls.filter(([c])=>c==='prepare_repository_action')).toHaveLength(1);
+    }finally{view.unmount();}
+});
+
+it('S7 local form holds passive refresh, retains manual-refresh input and invalidates on selection disposal', async () => {
+  vi.useFakeTimers();
+  const services = makeServices(), original = vi.mocked(services.api).getMockImplementation()!;
+  vi.mocked(services.api).mockImplementation(((command: string, request: Record<string, unknown>) => {
+    if (command === 'prepare_repository_action') return Promise.resolve({ ok: true, value: { scope: request.scope, kind: 'branchCreate', planId: 'local-plan', expiresAt: '2099-01-01', warnings: [] } });
+    return original(command as never, request as never);
+  }) as Api);
+  const view = render(<StrictMode><App {...services} /></StrictMode>);
+  try {
+    await act(async () => services.store.getState().open()); await act(async () => {});
+    const begin = vi.spyOn(services.store.getState(), 'beginInteraction');
+    fireEvent.click(screen.getByRole('button', { name: 'Local actions' })); fireEvent.click(screen.getByRole('button', { name: 'Local actions' })); await act(async () => {});
+    expect(begin).toHaveBeenCalledOnce(); expect(screen.getByRole('dialog', { name: 'Local repository actions' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Branch name'), { target: { value: 'keep-this-name' } }); fireEvent.click(screen.getByLabelText('Check out the new branch'));
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Prepare action' })));
+    const reads = () => vi.mocked(services.api).mock.calls.filter(([command]) => command === 'inspect_repository').length, before = reads();
+    await act(async () => { await vi.advanceTimersByTimeAsync(90_000); window.dispatchEvent(new Event('focus')); });
+    expect(reads()).toBe(before); expect(screen.getByRole('button', { name: 'Apply action' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh context' })); await act(async () => {});
+    expect(reads()).toBe(before + 1); expect(screen.getByLabelText('Branch name')).toHaveValue('keep-this-name'); expect(screen.getByLabelText('Check out the new branch')).toBeChecked(); expect(screen.queryByRole('button', { name: 'Apply action' })).not.toBeInTheDocument();
+    expect(vi.mocked(services.api).mock.calls.filter(([command]) => command === 'prepare_repository_action')).toHaveLength(1);
+    await act(async () => services.store.getState().forget(services.store.getState().workspace!.activeSelection!.repoId));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument(); expect(services.actions.getState().scope).toBeNull();
+  } finally { view.unmount(); vi.useRealTimers(); }
+});
 it('opens a real-service workspace response from empty view and forgets without deleting files', async () => {
   const user = userEvent.setup(); render(<App {...makeServices()} />);
   const open = await screen.findByRole('button', { name: 'Open a repository' });
@@ -207,4 +275,225 @@ it('has one StrictMode owner across tabs, preserves preferences and disposes the
   expect(count('get_workspace')).toBe(1); expect(count('get_repository_view')).toBe(1); expect(count('open_history')).toBe(1); expect(count('watch_repository')).toBe(1);
   view.unmount(); await act(async () => {});
   expect(history.getState().scope).toBeNull(); expect(count('unwatch_repository')).toBe(1);
+});
+
+it('AC2/AC8 refreshes changed action outcomes once for the matching repo including linked worktrees', async () => {
+  const services = makeServices(), original = vi.mocked(services.api).getMockImplementation()!;
+  vi.mocked(services.api).mockImplementation(((command: string, request: Record<string, unknown>) => {
+    if (command === 'get_action_outcome') return Promise.resolve({ ok: true, value: { operation: services.tasks.getState().snapshot!.operations.find(value => value.id === request.operationId)!, fetch: null } });
+    return original(command as never, request as never);
+  }) as Api);
+  const view = render(<App {...services} />);
+  await act(async () => services.store.getState().open());
+  await screen.findByRole('grid', { name: 'Commits' });
+  const repoId = services.store.getState().workspace!.activeSelection!.repoId;
+  const refresh = vi.spyOn(services.store.getState(), 'requestRefresh').mockResolvedValue();
+  const reload = vi.spyOn(services.store.getState(), 'reload').mockResolvedValue();
+  const action = { ...fixture.event.operation, id: 'partial-fetch', sequence: '5', kind: 'action' as const, actionKind: 'fetch' as const, state: 'Failed' as const, repoId, worktreeId: 'different-linked-worktree',
+    outcome: { effects: 'partial' as const, recovery: 'inspect' as const, cancellationRequested: true, repositoryChanged: true, observedAt: '2026-01-01' } } as unknown as import('./contracts').OperationSnapshot;
+  act(() => services.tasks.setState({ snapshot: { streamId: 'stream', sequence: '5', operations: [action] } }));
+  await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1)); expect(refresh).toHaveBeenCalledWith('operation'); expect(reload).not.toHaveBeenCalled();
+  act(() => services.tasks.setState({ snapshot: { streamId: 'stream', sequence: '5', operations: [{ ...action }] } }));
+  await act(async () => {}); expect(refresh).toHaveBeenCalledTimes(1);
+  const other = { ...action, id: 'other-repo-action', sequence: '6', repoId: 'different-repo', outcome: { ...action.outcome!, effects: 'unknown' as const } };
+  act(() => services.tasks.setState({ snapshot: { streamId: 'stream', sequence: '6', operations: [action, other] } }));
+  await act(async () => {}); expect(refresh).toHaveBeenCalledTimes(1);
+  const unknown = { ...other, id: 'unknown-matching', sequence: '7', repoId };
+  act(() => services.tasks.setState({ snapshot: { streamId: 'stream', sequence: '7', operations: [action, unknown] } }));
+  await waitFor(() => expect(refresh).toHaveBeenCalledTimes(2));
+  const clone = { ...fixture.event.operation, id: 'clone-done', sequence: '8', state: 'Succeeded' as const } as unknown as import('./contracts').OperationSnapshot;
+  act(() => services.tasks.setState({ snapshot: { streamId: 'stream', sequence: '8', operations: [action, unknown, clone] } }));
+  await waitFor(() => expect(reload).toHaveBeenCalledOnce()); expect(refresh).toHaveBeenCalledTimes(2);
+  view.unmount();
+});
+
+it('S3-CACHE01 retires App bookkeeping with authoritative IDs without repeating surviving completion on rotation', async () => {
+  const services = makeServices(), original = vi.mocked(services.api).getMockImplementation()!;
+  let next: import('./contracts').OperationsSnapshot = { streamId: 'initial', sequence: '0', operations: [] };
+  vi.mocked(services.api).mockImplementation(((command: string, request: Record<string, unknown>) => {
+    if (command === 'get_operations') return Promise.resolve({ ok: true, value: next });
+    if (command === 'get_action_outcome') return Promise.resolve({ ok: true, value: { operation: next.operations.find(value => value.id === request.operationId)!, fetch: null } });
+    return original(command as never, request as never);
+  }) as Api);
+  const view = render(<App {...services} />);
+  await act(async () => services.store.getState().open()); await screen.findByRole('grid', { name: 'Commits' });
+  const refresh = vi.spyOn(services.store.getState(), 'requestRefresh').mockResolvedValue(), reload = vi.spyOn(services.store.getState(), 'reload').mockResolvedValue();
+  const action = { ...fixture.event.operation, id: 'retired-action', sequence: '5', kind: 'action', actionKind: 'fetch', state: 'Failed', repoId: services.store.getState().workspace!.activeSelection!.repoId,
+    outcome: { effects: 'unknown', recovery: 'inspect', cancellationRequested: false, repositoryChanged: true, observedAt: '2026-01-01' } } as import('./contracts').OperationSnapshot;
+  const clone = { ...fixture.event.operation, id: 'surviving-clone', sequence: '6', state: 'Succeeded' } as import('./contracts').OperationSnapshot;
+  const publish = async (streamId: string, sequence: string, operations: import('./contracts').OperationSnapshot[]) => {
+    next = { streamId, sequence, operations }; await act(async () => services.tasks.getState().sync());
+  };
+  const reads = () => vi.mocked(services.api).mock.calls.filter(([command]) => command === 'get_action_outcome').length;
+  await publish('first', '10', [action, clone]);
+  await waitFor(() => expect(reload).toHaveBeenCalledTimes(1)); expect(refresh).not.toHaveBeenCalled(); expect(reads()).toBe(1);
+  await publish('compaction-rotation', '11', [action, clone]);
+  expect(reload).toHaveBeenCalledTimes(1); expect(refresh).not.toHaveBeenCalled(); expect(reads()).toBe(1);
+  await publish('retire-action', '12', [clone]); expect(services.tasks.getState().outcomes).toEqual({});
+  await publish('reintroduce-action', '13', [action, clone]);
+  await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1)); expect(reload).toHaveBeenCalledTimes(1); expect(reads()).toBe(2);
+  await publish('retire-all', '14', []);
+  await publish('reintroduce-both', '15', [action, clone]);
+  await waitFor(() => expect(reload).toHaveBeenCalledTimes(2)); expect(reads()).toBe(3); expect(refresh).toHaveBeenCalledTimes(1);
+  view.unmount();
+});
+
+it('S3-FORM01 keeps delayed prepare, remote selection and prune through ordinary fallback ticks', async () => {
+  vi.useFakeTimers();
+  const services = makeServices(), original = vi.mocked(services.api).getMockImplementation()!;
+  const daily = (await import('../fixtures/contracts/daily-wire.json')).default;
+  let finishPrepare!: (value: unknown) => void;
+  vi.mocked(services.api).mockImplementation(((command: string, request: Record<string, unknown>) => {
+    if (command === 'get_repository_actions') return Promise.resolve({ ok: true, value: { ...daily.catalog, scope: request.scope } });
+    if (command === 'prepare_repository_action') return new Promise<unknown>(resolve => { finishPrepare = resolve; });
+    return original(command as never, request as never);
+  }) as Api);
+  const view = render(<App {...services} />);
+  try {
+    await act(async () => services.store.getState().open()); await act(async () => {});
+    fireEvent.click(screen.getByRole('button', { name: 'Fetch…' })); await act(async () => {});
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Fetch origin' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Prune deleted remote-tracking branches' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare fetch' }));
+    const reads = vi.mocked(services.api).mock.calls.filter(([command]) => command === 'inspect_repository').length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); window.dispatchEvent(new Event('focus')); await vi.advanceTimersByTimeAsync(200); });
+    expect(screen.getByRole('dialog', { name: 'Fetch remotes' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Fetch origin' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Prune deleted remote-tracking branches' })).toBeChecked();
+    expect(vi.mocked(services.api).mock.calls.filter(([command]) => command === 'inspect_repository')).toHaveLength(reads);
+    await act(async () => finishPrepare({ ok: false, error: { code: 'ExternalChange', phase: 'inspection', retry: 'retry', message: 'Repository changed externally.' } }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Repository changed externally.');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' })); await act(async () => {});
+    expect(vi.mocked(services.api).mock.calls.filter(([command]) => command === 'inspect_repository')).toHaveLength(reads + 1);
+  } finally { finishPrepare?.({ ok: false, error: { code: 'Internal', phase: 'inspection', retry: 'none', message: 'Stopped test' } }); view.unmount(); vi.useRealTimers(); }
+});
+
+it('S3-FORM01 opening during quiet refresh waits for refreshed history and catalog', async () => {
+  vi.useFakeTimers();
+  const services = makeServices(), original = vi.mocked(services.api).getMockImplementation()!;
+  const daily = (await import('../fixtures/contracts/daily-wire.json')).default;
+  let delayInspection = false, delayCatalog = false;
+  let finishInspection!: (value: unknown) => void, finishCatalog!: (value: unknown) => void;
+  let inspectionRequest!: Record<string, unknown>, catalogRequest!: Record<string, unknown>;
+  vi.mocked(services.api).mockImplementation(((command: string, request: Record<string, unknown>) => {
+    if (command === 'inspect_repository' && delayInspection) { inspectionRequest = request; return new Promise<unknown>(resolve => { finishInspection = resolve; }); }
+    if (command === 'get_repository_actions') {
+      catalogRequest = request;
+      if (delayCatalog) return new Promise<unknown>(resolve => { finishCatalog = resolve; });
+      return Promise.resolve({ ok: true, value: { ...daily.catalog, scope: request.scope } });
+    }
+    return original(command as never, request as never);
+  }) as Api);
+  const view = render(<App {...services} />);
+  try {
+    await act(async () => services.store.getState().open()); await act(async () => {});
+    delayInspection = true; delayCatalog = true;
+    let refreshing!: Promise<void>; act(() => { refreshing = services.store.getState().requestRefresh('watch'); });
+    expect(screen.queryByText('Refreshing…')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Fetch…' })); await act(async () => {});
+    expect(screen.queryByRole('dialog', { name: 'Fetch remotes' })).not.toBeInTheDocument();
+    await act(async () => { finishInspection({ ok: true, value: { ...fixture.snapshots[0], ...inspectionRequest } }); await refreshing; });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await act(async () => finishCatalog({ ok: true, value: { ...daily.catalog, scope: catalogRequest.scope } }));
+    expect(screen.getByRole('dialog', { name: 'Fetch remotes' })).toBeInTheDocument();
+  } finally { view.unmount(); vi.useRealTimers(); }
+});
+
+it.each(['manual', 'operation'] as const)('S3-FORM01 %s invalidation keeps form/input, stales preview and resolves fresh handles only on explicit prepare', async reason => {
+  vi.useFakeTimers();
+  const services = makeServices(), original = vi.mocked(services.api).getMockImplementation()!;
+  const daily = (await import('../fixtures/contracts/daily-wire.json')).default;
+  vi.mocked(services.api).mockImplementation(((command: string, request: Record<string, unknown>) => {
+    const scope = request.scope as import('./contracts').HistoryScope;
+    if (command === 'get_repository_actions') return Promise.resolve({ ok: true, value: { ...daily.catalog, scope, snapshotId: `catalog-${scope.generation}`, remotes: daily.catalog.remotes.map(remote => ({ ...remote, handle: `remote-${scope.generation}-${remote.name}` })) } });
+    if (command === 'prepare_repository_action') return Promise.resolve({ ok: true, value: { ...daily.prepared, kind: 'fetch', scope, expiresAt: '2099-01-01T00:00:00Z' } });
+    return original(command as never, request as never);
+  }) as Api);
+  const view = render(<App {...services} />);
+  try {
+    await act(async () => services.store.getState().open()); await act(async () => {});
+    fireEvent.click(screen.getByRole('button', { name: 'Fetch…' })); await act(async () => {});
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Fetch origin' })); fireEvent.click(screen.getByRole('checkbox', { name: 'Prune deleted remote-tracking branches' }));
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Prepare fetch' })));
+    expect(screen.getByRole('button', { name: 'Start fetch' })).toBeInTheDocument();
+    const priorScope = services.sync.getState().scope;
+    if (reason === 'manual') { fireEvent.click(screen.getByRole('button', { name: 'Refresh context' })); await act(async () => {}); }
+    else await act(async () => services.store.getState().requestRefresh('operation'));
+    expect(services.sync.getState().scope).not.toEqual(priorScope);
+    expect(screen.getByRole('dialog', { name: 'Fetch remotes' })).toBeInTheDocument();
+    expect(screen.getByText('Repository refreshed. Prepare again.')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Fetch origin' })).toBeChecked(); expect(screen.getByRole('checkbox', { name: 'Prune deleted remote-tracking branches' })).toBeChecked();
+    expect(screen.queryByRole('button', { name: 'Start fetch' })).not.toBeInTheDocument();
+    const preparations = () => vi.mocked(services.api).mock.calls.filter(([command]) => command === 'prepare_repository_action');
+    expect(preparations()).toHaveLength(1);
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Prepare fetch' })));
+    expect(preparations()).toHaveLength(2);
+    expect(preparations()[1][1]).toEqual({ scope: services.sync.getState().scope, intent: { kind: 'fetch', remoteHandles: [`remote-${services.sync.getState().scope!.generation}-origin`], prune: true } });
+    expect(vi.mocked(services.api).mock.calls.some(([command]) => command === 'execute_repository_action')).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  } finally { view.unmount(); vi.useRealTimers(); }
+});
+
+it('S3-FORM01 double-open/cancel/unmount cannot reopen a form from late readiness or leak the hold', async () => {
+  vi.useFakeTimers();
+  const services = makeServices(), original = vi.mocked(services.api).getMockImplementation()!;
+  const daily = (await import('../fixtures/contracts/daily-wire.json')).default;
+  let gate = false, resolveInspection!: (value: unknown) => void, inspection!: Record<string, unknown>;
+  vi.mocked(services.api).mockImplementation(((command: string, request: Record<string, unknown>) => {
+    if (command === 'get_repository_actions') return Promise.resolve({ ok: true, value: { ...daily.catalog, scope: request.scope } });
+    if (command === 'inspect_repository' && gate) { inspection = request; return new Promise<unknown>(resolve => { resolveInspection = resolve; }); }
+    return original(command as never, request as never);
+  }) as Api);
+  const view = render(<StrictMode><App {...services} /></StrictMode>);
+  try {
+    await act(async () => services.store.getState().open()); await act(async () => {});
+    gate = true; let work!: Promise<void>; act(() => { work = services.store.getState().requestRefresh('watch'); });
+    const begin = vi.spyOn(services.store.getState(), 'beginInteraction');
+    fireEvent.click(screen.getByRole('button', { name: 'Fetch…' })); fireEvent.click(screen.getByRole('button', { name: 'Fetch…' }));
+    expect(begin).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel opening fetch' })); await act(async () => {});
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await act(async () => { resolveInspection({ ok: true, value: { ...fixture.snapshots[0], ...inspection } }); await work; });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    const lease = services.store.getState().beginInteraction()!; expect(await lease.ready).toBe(true); lease.release();
+    gate = false; fireEvent.click(screen.getByRole('button', { name: 'Fetch…' })); await act(async () => {});
+    expect(screen.getByRole('dialog')).toBeInTheDocument(); view.unmount(); await act(async () => {});
+    expect(services.history.getState().scope).toBeNull();
+  } finally { view.unmount(); vi.useRealTimers(); }
+});
+
+it.each(['accepted', 'lost'] as const)('S3-FORM01 releases deferred reads on %s execute reply or explicit close without retry', async reply => {
+  vi.useFakeTimers();
+  const services = makeServices(), original = vi.mocked(services.api).getMockImplementation()!;
+  const daily = (await import('../fixtures/contracts/daily-wire.json')).default;
+  let finishExecute!: (value: unknown) => void;
+  vi.mocked(services.api).mockImplementation(((command: string, request: Record<string, unknown>) => {
+    if (command === 'get_repository_actions') return Promise.resolve({ ok: true, value: { ...daily.catalog, scope: request.scope } });
+    if (command === 'prepare_repository_action') return Promise.resolve({ ok: true, value: { ...daily.prepared, kind: 'fetch', scope: request.scope, expiresAt: '2099-01-01T00:00:00Z' } });
+    if (command === 'execute_repository_action') return new Promise<unknown>(resolve => { finishExecute = resolve; });
+    return original(command as never, request as never);
+  }) as Api);
+  const view = render(<App {...services} />);
+  try {
+    await act(async () => services.store.getState().open()); await act(async () => {});
+    fireEvent.click(screen.getByRole('button', { name: 'Fetch…' })); await act(async () => {});
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Fetch origin' }));
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Prepare fetch' })));
+    const scope = services.sync.getState().scope!, reads = vi.mocked(services.api).mock.calls.filter(([command]) => command === 'inspect_repository').length;
+    fireEvent.click(screen.getByRole('button', { name: 'Start fetch' }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(vi.mocked(services.api).mock.calls.filter(([command]) => command === 'inspect_repository')).toHaveLength(reads);
+    await act(async () => finishExecute(reply === 'accepted' ? { ok: true, value: { ...daily.operation, kind: 'action', actionKind: 'fetch', repoId: scope.repoId, worktreeId: scope.worktreeId } }
+      : { ok: false, error: { code: 'Internal', phase: 'transfer', retry: 'none', message: 'Execute reply unavailable.' } }));
+    if (reply === 'lost') {
+      expect(screen.getByRole('dialog', { name: 'Fetch remotes' })).toBeInTheDocument();
+      expect(screen.getByText(/The fetch reply was not confirmed/)).toBeInTheDocument();
+      expect(vi.mocked(services.api).mock.calls.filter(([command]) => command === 'inspect_repository')).toHaveLength(reads);
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' })); await act(async () => {});
+    }
+    expect(screen.queryByRole('dialog', { name: 'Fetch remotes' })).not.toBeInTheDocument();
+    expect(vi.mocked(services.api).mock.calls.filter(([command]) => command === 'inspect_repository')).toHaveLength(reads + 1);
+    expect(vi.mocked(services.api).mock.calls.filter(([command]) => command === 'execute_repository_action')).toHaveLength(1);
+    expect(vi.mocked(services.api).mock.calls.filter(([command]) => command === 'prepare_repository_action')).toHaveLength(1);
+  } finally { view.unmount(); vi.useRealTimers(); }
 });

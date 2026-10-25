@@ -87,3 +87,52 @@ it('preserves content and recovers after a service failure; late old-repo respon
   expect(store.getState().refreshing).toBe(false);
   expect((store.getState().snapshot as RepositorySnapshot).generation).not.toBe((request as { generation: string }).generation);
 });
+
+it('S3-FORM01 interaction holds repeated passive ticks, flushes once and does not block manual/operation reads', async () => {
+  const h = harness();
+  const lease = h.refresh.acquireInteraction()!; expect(await lease.ready).toBe(true);
+  await vi.advanceTimersByTimeAsync(60_000); window.dispatchEvent(new Event('focus')); await vi.advanceTimersByTimeAsync(150);
+  void h.refresh.request('watch'); expect(h.run).not.toHaveBeenCalled();
+  const manual = h.refresh.request('manual'); expect(h.run).toHaveBeenCalledTimes(1); h.work[0].resolve(); await manual;
+  const operation = h.refresh.request('operation'); expect(h.run).toHaveBeenCalledTimes(2); h.work[1].resolve(); await operation;
+  lease.release(); lease.release(); expect(h.run).toHaveBeenCalledTimes(3); h.work[2].resolve(); await vi.advanceTimersByTimeAsync(0);
+  expect(h.run).toHaveBeenCalledTimes(3);
+});
+it('S3-FORM01 readiness waits for an existing quiet run and holds its queued passive rerun', async () => {
+  const h = harness(), running = h.refresh.request('watch'); void h.refresh.request('focus');
+  const lease = h.refresh.acquireInteraction()!; let ready = false; void lease.ready.then(value => { ready = value; });
+  await vi.advanceTimersByTimeAsync(0); expect(ready).toBe(false); expect(h.feedback).not.toHaveBeenCalled();
+  h.work[0].resolve(); await running; expect(await lease.ready).toBe(true); expect(h.run).toHaveBeenCalledTimes(1);
+  lease.release(); expect(h.run).toHaveBeenCalledTimes(2); h.work[1].resolve(); await vi.advanceTimersByTimeAsync(0);
+});
+
+it('S3-FORM01 release while hidden defers once until resume and cannot release a newer owner', async () => {
+  const h = harness(), first = h.refresh.acquireInteraction()!; expect(await first.ready).toBe(true);
+  void h.refresh.request('watch'); h.hide(); first.release(); expect(h.run).not.toHaveBeenCalled();
+  h.show(); expect(h.run).toHaveBeenCalledTimes(1); h.work[0].resolve(); await vi.advanceTimersByTimeAsync(0);
+  const current = h.refresh.acquireInteraction()!; first.release(); expect(current.isCurrent()).toBe(true);
+  void h.refresh.request('fallback'); current.release(); expect(h.run).toHaveBeenCalledTimes(2); h.work[1].resolve(); await vi.advanceTimersByTimeAsync(0);
+});
+it('S3-FORM01 cancels readiness immediately across selection/ABA/disposal without reviving an old lease', async () => {
+  const h = harness(), oldRun = h.refresh.request('watch'), old = h.refresh.acquireInteraction()!;
+  h.refresh.invalidateInteraction(); expect(await old.ready).toBe(false);
+  h.select('repo-b'); void h.refresh.request('operation'); h.select('repo-a');
+  const current = h.refresh.acquireInteraction()!; old.release(); expect(current.isCurrent()).toBe(true);
+  h.work[0].resolve(); await vi.advanceTimersByTimeAsync(0); expect(h.run).toHaveBeenCalledTimes(2);
+  h.work[1].resolve(); await oldRun; expect(await current.ready).toBe(true);
+  cleanups.forEach(stop => stop()); cleanups = []; expect(current.isCurrent()).toBe(false);
+  void h.refresh.request('watch'); expect(h.run).toHaveBeenCalledTimes(3); h.work[2].resolve();
+});
+it('S3-FORM01 preserves an urgent queued rerun while acquiring during a quiet refresh', async () => {
+  const h = harness(), running = h.refresh.request('watch'); void h.refresh.request('operation');
+  const lease = h.refresh.acquireInteraction()!; h.work[0].resolve(); await vi.advanceTimersByTimeAsync(0);
+  expect(h.run).toHaveBeenCalledTimes(2); let ready = false; void lease.ready.then(value => { ready = value; });
+  expect(ready).toBe(false); h.work[1].resolve(); await running; expect(await lease.ready).toBe(true); lease.release();
+});
+
+it('S3-FORM01 preserves hidden operation intent through resume while the interaction remains open', async () => {
+  const h = harness(), lease = h.refresh.acquireInteraction()!; await lease.ready;
+  h.hide(); await h.refresh.request('operation'); expect(h.run).not.toHaveBeenCalled();
+  h.show(); expect(h.run).toHaveBeenCalledTimes(1); expect(lease.isCurrent()).toBe(true);
+  h.work[0].resolve(); await vi.advanceTimersByTimeAsync(0); lease.release(); expect(h.run).toHaveBeenCalledTimes(1);
+});

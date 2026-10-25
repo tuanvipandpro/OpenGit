@@ -1,0 +1,117 @@
+{
+  "catalogRequest": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    }
+  },
+  "catalog": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    },
+    "catalogId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "head": {
+      "kind": "branch",
+      "branch": "main",
+      "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "unsupported": false,
+    "entries": [
+      {
+        "entryId": "entry-0",
+        "pathDisplay": "[literal] Ω.txt",
+        "previousPathDisplay": null,
+        "indexStatus": "M",
+        "worktreeStatus": "M",
+        "stageCapability": "eligible",
+        "unstageCapability": "eligible"
+      }
+    ],
+    "observedAt": "2026-10-25T00:00:00Z"
+  },
+  "resolveRequest": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    },
+    "catalogId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "targets": [
+      {
+        "side": "unstaged",
+        "entryId": "entry-0"
+      }
+    ]
+  },
+  "resolved": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    },
+    "catalogId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "targets": [
+      {
+        "side": "unstaged",
+        "entryId": "entry-0",
+        "changeHandle": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      }
+    ]
+  },
+  "diffRequest": {
+    "changeHandle": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    }
+  },
+  "diff": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    },
+    "partialEligibility": "Whole-file actions only",
+    "hunks": [],
+    "diffId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "content": "+fixture preview",
+    "changeHandle": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "result": {
+    "operation": {
+      "id": "00000000-0000-4000-8000-000000000030",
+      "sequence": "3",
+      "kind": "action",
+      "state": "Succeeded",
+      "phase": "verification",
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "sourceDisplay": "Repository action",
+      "destinationDisplay": "Selected repository",
+      "progress": null,
+      "canCancel": false,
+      "authPrompt": null,
+      "error": null,
+      "createdAt": "2026-10-25T00:00:00Z",
+      "updatedAt": "2026-10-25T01:00:00Z",
+      "actionKind": "stage",
+      "outcome": {
+        "effects": "applied",
+        "recovery": "none",
+        "cancellationRequested": false,
+        "repositoryChanged": true,
+        "observedAt": "2026-10-25T01:00:00Z"
+      }
+    },
+    "result": {
+      "treeOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "failureReason": null,
+      "artifactsRetained": false,
+      "commitOid": null
+    }
+  }
+}

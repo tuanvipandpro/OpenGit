@@ -1,6 +1,7 @@
 mod details;
 mod diff;
 mod query;
+pub(crate) use query::Query as ActionHistoryQuery;
 pub(crate) mod refs;
 mod search;
 pub(crate) mod sessions;
@@ -92,6 +93,99 @@ fn bounded_response<T: Serialize>(value: &T) -> Result<(), AppError> {
     serde_json::to_writer(Budget(0), &Success { ok: true, value }).map_err(|_| limit())
 }
 impl History {
+    pub(crate) async fn validate_context(
+        &self,
+        window: &str,
+        runner: &GitRunner,
+        context: &HistoryContext,
+        lifetime: std::sync::Arc<dyn Send + Sync>,
+    ) -> Result<(), AppError> {
+        let entry = self.sessions.get_context(window, context)?;
+        let session = entry.session.lock().await;
+        entry.valid()?;
+        let query =
+            query::Query::new_action(runner, &session.location, session.cancel.clone(), lifetime)
+                .await
+                .map_err(|e| changed_error(&entry, e))?;
+        if query
+            .fingerprint()
+            .await
+            .map_err(|e| changed_error(&entry, e))?
+            != session.fingerprint
+        {
+            return Err(changed_error(&entry, external()));
+        }
+        entry.valid()
+    }
+    pub(crate) async fn resolve_action_commit(
+        &self,
+        window: &str,
+        runner: &GitRunner,
+        context: &HistoryContext,
+        handle: &str,
+        lifetime: std::sync::Arc<dyn Send + Sync>,
+    ) -> Result<String, AppError> {
+        let entry = self.sessions.get_context(window, context)?;
+        let session = entry.session.lock().await;
+        entry.valid()?;
+        let oid = session
+            .handle_oids
+            .get(handle)
+            .cloned()
+            .ok_or_else(invalid_handle)?;
+        let query =
+            query::Query::new_action(runner, &session.location, session.cancel.clone(), lifetime)
+                .await?;
+        if query.fingerprint().await? != session.fingerprint {
+            return Err(changed_error(&entry, external()));
+        }
+        entry.valid()?;
+        Ok(oid)
+    }
+    pub(crate) async fn containment(
+        &self,
+        window: &str,
+        runner: &GitRunner,
+        request: GetCommitContainmentRequest,
+        lifetime: std::sync::Arc<dyn Send + Sync>,
+    ) -> Result<CommitContainment, AppError> {
+        validation::request_size(&request)?;
+        validation::counter(&request.context.scope.generation)?;
+        let entry = self.sessions.get_context(window, &request.context)?;
+        let _permit = self.reads.acquire().await.map_err(|_| internal())?;
+        let session = entry.session.lock().await;
+        entry.valid()?;
+        let oid = session
+            .handle_oids
+            .get(&request.commit_handle)
+            .ok_or_else(invalid_handle)?;
+        let query =
+            query::Query::new_action(runner, &session.location, session.cancel.clone(), lifetime)
+                .await
+                .map_err(|e| changed_error(&entry, e))?;
+        if query
+            .fingerprint()
+            .await
+            .map_err(|e| changed_error(&entry, e))?
+            != session.fingerprint
+        {
+            return Err(changed_error(&entry, external()));
+        }
+        let result =
+            crate::actions::containment::read(&query, &session, &request.commit_handle, oid)
+                .await?;
+        if query
+            .fingerprint()
+            .await
+            .map_err(|e| changed_error(&entry, e))?
+            != session.fingerprint
+        {
+            return Err(changed_error(&entry, external()));
+        }
+        entry.valid()?;
+        bounded_response(&result)?;
+        Ok(result)
+    }
     pub async fn details(
         &self,
         window: &str,

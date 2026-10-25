@@ -1,8 +1,8 @@
 # OpenGit roadmap
 
-Release completion is not claimed. The 0.2.0 implementation candidate has native Windows evidence; versions0.3.0 onward remain planned. The canonical current target is recorded in the root `VERSION` file; it does not imply that a release exists. This document is scope, not implementation evidence or authorization to build all versions in one task. First supported target: Windows; portable architecture for later macOS/Linux releases.
+Release completion is not claimed. Checkpoint0.2.0 ce5da58 has native Windows evidence;0.3.0 is being implemented under task007 and versions0.4.0 onward remain planned. The canonical current target is recorded in the root `VERSION` file; it does not imply that a release exists. This document is scope, not implementation evidence or authorization to build all versions in one task. First supported target: Windows; portable architecture for later macOS/Linux releases.
 
-Current implementation/review status is tracked in [0.2.0 evidence](testing/0.2.0-acceptance.md); earlier external-provider EXT-01 stays in [0.1.0 acceptance evidence](testing/0.1.0-acceptance.md). This roadmap does not replace that living evidence.
+Current0.3.0 implementation/review status is tracked in [task007](tasks/007-implement-0.3.0.md) and [plan](plans/0.3.0.md); earlier [0.2.0 evidence](testing/0.2.0-acceptance.md) and external-provider EXT-01 in [0.1.0 evidence](testing/0.1.0-acceptance.md) remain separate. This roadmap does not replace living evidence.
 
 ## Requirement IDs
 
@@ -50,6 +50,8 @@ Implementation packets and validation for this scope are recorded in the0.2.0 pl
 
 ## v0.3.0 — Daily Git actions
 
+- Selected-commit context: list local and remote-tracking branches containing the commit, current branch/upstream inclusion, independent of graph visibility and pagination. Tip decorations are not containment.
+- Remote publication evidence is a local tracking snapshot with remote-specific fetch freshness/scope. Absence is not proof of never pushed; narrowed refspecs, retained deleted refs and shallow/incomplete ancestry must not produce a false definitive answer. Unknown/error states stay explicit.
 - Fetch one/all remotes, optional prune; create/rename/switch/delete branches and tracking setup.
 - Create lightweight/annotated tags; explicit local versus remote push/delete targets.
 - Stage/unstage file, hunk, eligible text lines; commit/amend and hook/signing error visibility.
@@ -58,7 +60,7 @@ Implementation packets and validation for this scope are recorded in the0.2.0 pl
 - Explain divergence instead of silently choosing merge/rebase; full strategies arrive in v0.4.0.
 - Preflight dirty state and existing operation; report actual results and failures.
 
-Acceptance: branch → stage → commit → push → tag workflow works with isolated test remotes; rejected pushes and hook failures are correctly represented. No destructive mutation is tested on the development checkout.
+Acceptance: commit containment matches real ancestry in full histories and reports conservative unknowns for incomplete data; fetch freshness is truthful for the relevant remote/scope. Branch → stage → commit → push → tag workflow works with isolated test remotes; rejected pushes and hook failures are correctly represented. No destructive mutation is tested on the development checkout.
 
 ## v0.4.0 — Integration and recovery
 

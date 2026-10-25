@@ -1,0 +1,160 @@
+{
+  "catalogRequest": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    }
+  },
+  "catalog": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    },
+    "observedAt": "2026-10-25T00:00:00Z",
+    "remotes": [
+      {
+        "name": "origin",
+        "endpoints": [
+          {
+            "role": "fetch",
+            "handle": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "capability": "eligible"
+          },
+          {
+            "role": "push",
+            "handle": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "capability": "eligible"
+          }
+        ]
+      }
+    ]
+  },
+  "intent": {
+    "kind": "readRemoteRefs",
+    "remoteHandle": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  },
+  "result": {
+    "operation": {
+      "id": "00000000-0000-4000-8000-000000000030",
+      "sequence": "3",
+      "kind": "action",
+      "state": "Succeeded",
+      "phase": "verification",
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "sourceDisplay": "Repository action",
+      "destinationDisplay": "Selected repository",
+      "progress": null,
+      "canCancel": false,
+      "authPrompt": null,
+      "error": null,
+      "createdAt": "2026-10-25T00:00:00Z",
+      "updatedAt": "2026-10-25T01:00:00Z",
+      "actionKind": "readRemoteRefs",
+      "outcome": {
+        "effects": "notApplied",
+        "recovery": "none",
+        "cancellationRequested": false,
+        "repositoryChanged": false,
+        "observedAt": "2026-10-25T00:00:00Z"
+      }
+    },
+    "availability": "available",
+    "evidence": {
+      "remoteName": "origin",
+      "role": "push",
+      "phase": "observed",
+      "refCount": "2",
+      "observedAt": "2026-10-25T00:00:00Z",
+      "noGitWrites": true
+    },
+    "snapshot": {
+      "capturedScope": {
+        "repoId": "repo",
+        "worktreeId": "tree",
+        "generation": "9007199254740993"
+      },
+      "snapshotId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "remoteName": "origin",
+      "role": "push",
+      "observedAt": "2026-10-25T00:00:00Z",
+      "expiresAt": "2026-10-25T00:01:00Z",
+      "objectFormat": "sha1",
+      "refs": [
+        {
+          "entryId": "entry-0",
+          "name": "refs/heads/main",
+          "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "entryId": "entry-1",
+          "name": "refs/tags/v1",
+          "oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ]
+    }
+  },
+  "resolveRequest": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    },
+    "snapshotId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "source": {
+      "kind": "existing",
+      "entryId": "entry-0"
+    }
+  },
+  "resolved": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    },
+    "snapshotId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "handle": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "name": "refs/heads/main",
+    "expectedOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "namespace": "branch"
+  },
+  "unavailable": {
+    "operation": {
+      "id": "00000000-0000-4000-8000-000000000030",
+      "sequence": "3",
+      "kind": "action",
+      "state": "Succeeded",
+      "phase": "verification",
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "sourceDisplay": "Repository action",
+      "destinationDisplay": "Selected repository",
+      "progress": null,
+      "canCancel": false,
+      "authPrompt": null,
+      "error": null,
+      "createdAt": "2026-10-25T00:00:00Z",
+      "updatedAt": "2026-10-25T01:00:00Z",
+      "actionKind": "readRemoteRefs",
+      "outcome": {
+        "effects": "notApplied",
+        "recovery": "none",
+        "cancellationRequested": false,
+        "repositoryChanged": false,
+        "observedAt": "2026-10-25T00:00:00Z"
+      }
+    },
+    "availability": "unavailable",
+    "evidence": {
+      "remoteName": "origin",
+      "role": "push",
+      "phase": "observed",
+      "refCount": "2",
+      "observedAt": "2026-10-25T00:00:00Z",
+      "noGitWrites": true
+    },
+    "snapshot": null
+  }
+}

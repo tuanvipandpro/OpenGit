@@ -156,6 +156,7 @@ impl AuthSession {
         // Embedded quoting would become part of the literal executable name.
         let session = self.0.clone();
         Ok(RunOptions {
+            trusted_index: None,
             interactive: true,
             lifetime_guard: Some(paths.clone()),
             environment: vec![

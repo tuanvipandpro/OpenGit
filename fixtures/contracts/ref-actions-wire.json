@@ -1,0 +1,196 @@
+{
+  "catalogRequest": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    }
+  },
+  "catalog": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    },
+    "catalogId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "observedAt": "2026-10-25T00:00:00Z",
+    "head": {
+      "kind": "branch",
+      "branch": "main",
+      "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "headEntryId": "entry-0",
+    "refs": [
+      {
+        "entryId": "entry-0",
+        "kind": "local",
+        "name": "refs/heads/main",
+        "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "symbolicTarget": null,
+        "checkedOutHere": true,
+        "checkedOutElsewhere": false,
+        "canStart": true
+      },
+      {
+        "entryId": "entry-1",
+        "kind": "remote",
+        "name": "refs/remotes/origin/HEAD",
+        "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "symbolicTarget": "refs/remotes/origin/main",
+        "checkedOutHere": false,
+        "checkedOutElsewhere": false,
+        "canStart": false
+      },
+      {
+        "entryId": "entry-2",
+        "kind": "tag",
+        "name": "refs/tags/v1",
+        "oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "symbolicTarget": null,
+        "checkedOutHere": false,
+        "checkedOutElsewhere": false,
+        "canStart": true
+      }
+    ],
+    "bare": false,
+    "dirty": false
+  },
+  "resolveRequests": [
+    {
+      "scope": {
+        "repoId": "repo",
+        "worktreeId": "tree",
+        "generation": "9007199254740993"
+      },
+      "catalogId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "source": {
+        "kind": "head"
+      }
+    },
+    {
+      "scope": {
+        "repoId": "repo",
+        "worktreeId": "tree",
+        "generation": "9007199254740993"
+      },
+      "catalogId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "source": {
+        "kind": "ref",
+        "entryId": "entry-0"
+      }
+    },
+    {
+      "scope": {
+        "repoId": "repo",
+        "worktreeId": "tree",
+        "generation": "9007199254740993"
+      },
+      "catalogId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "source": {
+        "kind": "historyCommit",
+        "context": {
+          "scope": {
+            "repoId": "repo",
+            "worktreeId": "tree",
+            "generation": "9007199254740993"
+          },
+          "snapshotId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "commitHandle": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      }
+    }
+  ],
+  "resolved": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    },
+    "catalogId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "handle": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "kind": "branch",
+    "displayName": "refs/heads/main",
+    "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "result": {
+    "operation": {
+      "id": "00000000-0000-4000-8000-000000000030",
+      "sequence": "3",
+      "kind": "action",
+      "state": "Failed",
+      "phase": "verification",
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "sourceDisplay": "Repository action",
+      "destinationDisplay": "Selected repository",
+      "progress": null,
+      "canCancel": false,
+      "authPrompt": null,
+      "error": {
+        "code": "Internal",
+        "message": "The operation could not be completed safely.",
+        "phase": "publish",
+        "retry": "none"
+      },
+      "createdAt": "2026-10-25T00:00:00Z",
+      "updatedAt": "2026-10-25T01:00:00Z",
+      "actionKind": "branchCreate",
+      "outcome": {
+        "effects": "partial",
+        "recovery": "inspect",
+        "cancellationRequested": false,
+        "repositoryChanged": true,
+        "observedAt": "2026-10-25T01:00:00Z"
+      }
+    },
+    "result": {
+      "steps": [
+        {
+          "step": "createBranch",
+          "effects": "applied",
+          "phase": "observed",
+          "failureReason": null
+        },
+        {
+          "step": "switchBranch",
+          "effects": "notApplied",
+          "phase": "observed",
+          "failureReason": null
+        }
+      ]
+    }
+  },
+  "unknown": {
+    "operation": {
+      "id": "00000000-0000-4000-8000-000000000030",
+      "sequence": "3",
+      "kind": "action",
+      "state": "Interrupted",
+      "phase": "recovery",
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "sourceDisplay": "Repository action",
+      "destinationDisplay": "Selected repository",
+      "progress": null,
+      "canCancel": false,
+      "authPrompt": null,
+      "error": {
+        "code": "Interrupted",
+        "message": "Repository action effects or process shutdown could not be confirmed. Restart OpenGit and inspect the repository before retrying.",
+        "phase": "recovery",
+        "retry": "none"
+      },
+      "createdAt": "2026-10-25T00:00:00Z",
+      "updatedAt": "2026-10-25T01:00:00Z",
+      "actionKind": "branchCreate",
+      "outcome": {
+        "effects": "unknown",
+        "recovery": "inspect",
+        "cancellationRequested": true,
+        "repositoryChanged": true,
+        "observedAt": "2026-10-25T01:00:00Z"
+      }
+    },
+    "result": null
+  }
+}

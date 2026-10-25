@@ -2,12 +2,14 @@
 
 Desktop Git client ưu tiên cây commit trực quan, quản lý nhiều branch và Hide/Solo theo repository. Trải nghiệm lấy cảm hứng từ GitKraken, với thiết kế và tài sản đồ họa riêng.
 
-**Trạng thái: implementation candidate 0.2.0 đã được kiểm chứng trên Windows.** Có graph/history, search toàn lịch sử, Hide/Solo nhiều branch, diff và trạng thái theo repo; watcher phối hợp fallback 30 giây. Frontend226 và Rust core138 tests PASS. UX mới đưa thao tác branch/tag vào graph và danh sách References mở theo nhu cầu; tiến độ kiểm chứng ở [task006](docs/tasks/006-graph-actions-ux.md). Evidence nền tảng/native nằm tại [0.2.0 acceptance](docs/testing/0.2.0-acceptance.md). Chưa tạo installer hoặc phát hành; GCM/OAuth/SSO bên ngoài vẫn chưa được chứng minh. Checkpoint0.1.0 là `dded840`.
+**Trạng thái: đang triển khai 0.3.0.** GitHub `master` giữ baseline0.2.0 `ce5da58`; development ở `codex/0.3.0`. History/diff, commit thuộc nhánh nào, fetch/prune và private HTTPS/SSH đã có kiểm chứng native. UI branch/tag/upstream cũng đã qua source review và luồng Git thực tế.
+
+Changes với stage/unstage theo file và commit đã qua review cùng luồng native, gồm hook từ chối, giữ draft và bảo toàn staged/working edits. Đây là development checkpoint; partial staging/amend, push/pull và stash vẫn phải hoàn tất trong0.3.0. Tiến độ và bằng chứng ở [task007](docs/tasks/007-implement-0.3.0.md), [plan](docs/plans/0.3.0.md) và [acceptance](docs/testing/0.3.0-acceptance.md). Chưa phát hành0.3.0 hoặc installer; kiểm chứng enterprise GCM/OAuth/SSO bên ngoài được theo dõi riêng.
 
 ## Phạm vi sản phẩm
 
 1. **Repository public/private:** clone qua HTTPS, SSH và local path khi người dùng có quyền; hỗ trợ Git host phổ biến và self-hosted thông qua Git, không khóa private repo theo gói ứng dụng.
-2. **Quan sát:** graph, sidebar branch/remote/tag, commit details, diff, tìm kiếm lịch sử; Hide/Solo nhiều branch và nhớ bộ lọc theo repo.
+2. **Quan sát:** graph với nhãn branch/remote/tag, commit details, diff, tìm kiếm lịch sử; Hide/Solo nhiều branch và nhớ bộ lọc theo repo.
 3. **Làm việc hằng ngày:** fetch, quản lý/chuyển branch, tạo tag, stage/commit, pull/push, kết quả và lỗi rõ ràng.
 4. **Tích hợp thay đổi:** merge, cherry-pick, rebase, giải quyết conflict, tiếp tục hoặc hủy thao tác đang dở, phục hồi sau khi mở lại app.
 5. **Workspace nhiều repo:** cherry-pick giữa branch trong cùng repo/nhiều remote và giữa hai repository riêng.
@@ -33,9 +35,9 @@ Git là nguồn dữ liệu chính cho lịch sử và trạng thái thao tác. 
 
 ## Phiên bản hiện tại
 
-`VERSION` hiện là `0.2.0`. Implementation candidate và bản phát hành là hai trạng thái riêng; xem evidence bên trên và [quy tắc đánh version](docs/versioning.md).
+`VERSION` hiện là `0.3.0`: target đang triển khai. Checkpoint0.2.0 là `ce5da58`; target mới không phải tuyên bố đã hoàn tất/phát hành. Xem [quy tắc đánh version](docs/versioning.md).
 
-Mở repo để vào History; chọn commit rồi chọn file để xem diff. Với merge commit, chọn parent cần so sánh. Bấm hoặc chuột phải nhãn branch/tag trên graph để View commit, Hide/Show hoặc Add/Remove from Solo. Solo có thể gồm nhiều branch. Nút References mở danh sách đầy đủ, gồm nhánh bị ẩn/chưa xuất hiện trong graph và thao tác theo nhóm; không có sidebar cố định hay slider Sidebar width. Search tìm cả commit ngoài bộ lọc mà không đổi bộ lọc. Layout, lựa chọn và vị trí cuộn được nhớ theo repo; linked worktrees dùng chung preferences. Overview hiển thị trạng thái working tree. Tạo/chuyển branch và cherry-pick vẫn thuộc các phiên bản sau.
+Mở repo để vào History; chọn commit rồi chọn file để xem diff và các nhánh chứa commit. Với merge commit, chọn parent cần so sánh. Bấm hoặc chuột phải nhãn branch/tag trên graph để View commit, Hide/Show, Add/Remove from Solo hoặc mở thao tác local branch/tag. Nút **Local actions** có tạo/chuyển/đổi tên/xóa branch, đặt upstream và tạo/xóa tag. Solo có thể gồm nhiều branch; **References** mở danh sách đầy đủ, kể cả nhánh bị ẩn. Search tìm commit ngoài bộ lọc mà không đổi bộ lọc. View, lựa chọn và vị trí cuộn được nhớ theo repo; linked worktrees dùng chung preferences. **Changes** chứa staged/unstaged, diff và luồng stage/commit đang nghiệm thu. Cherry-pick nằm ở0.4.0.
 
 Refresh tự động khi có notification, focus hoặc sau thao tác liên quan; fallback30 giây chỉ chạy khi cửa sổ hiện. Background refresh giữ nội dung; thao tác thủ công hoặc refresh chậm mới có feedback. Giới hạn history100.000 commit/session và các trường hợp không hỗ trợ được trả lỗi rõ ràng; xem [history contract](docs/architecture/history.md).
 
@@ -45,7 +47,7 @@ Refresh tự động khi có notification, focus hoặc sau thao tác liên quan
 | --- | --- | --- |
 | v0.1.0 | Workspace, mở/clone repo private, auth, task/error panel | Implementation candidate · under acceptance |
 | v0.2.0 | Graph, sidebar, commit/diff, search, Hide/Solo, persistence; quiet refresh/watchers | Implementation candidate · native verified; gate status in evidence |
-| v0.3.0 | Fetch, branch/tag, stage/commit, stash, pull/push | Planned |
+| v0.3.0 | Commit containment/remote evidence, fetch, branch/tag, stage/commit, stash, pull/push | Implementing · task007; not yet accepted |
 | v0.4.0 | Merge, cherry-pick, rebase, conflict và recovery | Planned |
 | v0.5.0 | Cherry-pick giữa repository trong workspace | Planned |
 | v0.6.0 | LFS, submodule, worktree, signing UX, tương thích và hiệu năng | Planned |

@@ -1,3 +1,4 @@
+pub mod daily;
 pub mod faults;
 pub mod history;
 pub mod repos;

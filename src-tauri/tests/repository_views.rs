@@ -407,7 +407,7 @@ fn migrations_zero_one_two_to_three_preserve_rows_and_failures_roll_back_the_ent
                 connection
                     .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                     .unwrap(),
-                if fail { version } else { 3 }
+                if fail { version } else { 5 }
             );
             if version >= 1 {
                 assert_eq!(

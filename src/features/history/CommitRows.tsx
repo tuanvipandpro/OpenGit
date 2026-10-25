@@ -10,6 +10,7 @@ import { HistoryGraph } from './HistoryGraph';
 import type { HistoryGraphFrame, HistoryViewport } from './HistoryGraph';
 import { RefActionsMenu } from './RefActionsMenu';
 import type { RefMenuTarget } from './RefActionsMenu';
+import type { ActionLaunch } from '../../stores/repositoryActions';
 import type { HistoryFilterAction } from './visibility';
 import './history.css';
 
@@ -23,6 +24,8 @@ export type CommitRowsProps = {
   suppressSelectionScroll?: boolean;
   actionContext?: string; actionsLoading?: boolean;
   onSelectRef?: (ref: HistoryRef) => void; onFilterAction?: (action: HistoryFilterAction) => void;
+  onAction?: (launch: ActionLaunch) => void;
+  onCommitAction?: (oid: string) => void;
   onGraphFrame?: (frame: HistoryGraphFrame) => void;
 };
 
@@ -112,6 +115,13 @@ export function CommitRows(props: CommitRowsProps) {
       focusReferences(); current.onFilterAction?.(action);
     } else current.onSelectRef?.(target.ref);
   };
+  const dispatchAction = (launch: ActionLaunch) => {
+    const current = latest.current, target = menu;
+    closeMenu();
+    if (!target || current.actionsLoading || current.actionContext !== target.context || launch.refName !== target.ref.name || target.ref.symbolicTarget
+      || !current.refs.some(ref => ref.name === target.ref.name && ref.kind === target.ref.kind && ref.commitOid === target.ref.commitOid && !ref.symbolicTarget)) return;
+    current.onAction?.(launch);
+  };
   const refs = useMemo(() => new Map(props.refs.map(ref => [ref.name, ref])), [props.refs]);
   const items = virtualizer.getVirtualItems(), selected = selectedOid ? layout.nodesByOid.get(selectedOid) : undefined;
   useLayoutEffect(() => {
@@ -147,7 +157,7 @@ export function CommitRows(props: CommitRowsProps) {
             const decorations = visibleHistoryDecorations(commit.decorations, props.filter);
             return <div key={commit.oid} id={`${id}-row-${item.index}`} role="row" aria-selected={commit.oid === selectedOid}
               aria-rowindex={item.index + 1} data-oid={commit.oid} className="history-commit-row"
-              style={{ height: rowHeight, transform: `translateY(${item.start}px)`, paddingLeft: graphWidth }} onClick={() => { cancelPendingScroll(); scroll.current?.focus({ preventScroll: true }); onSelect(commit.oid); }}>
+              style={{ height: rowHeight, transform: `translateY(${item.start}px)`, paddingLeft: graphWidth }} onContextMenu={props.onCommitAction ? event => { event.preventDefault(); onSelect(commit.oid); props.onCommitAction?.(commit.oid); } : undefined} onClick={() => { cancelPendingScroll(); scroll.current?.focus({ preventScroll: true }); onSelect(commit.oid); }}>
               <span role="gridcell" className="history-subject">{commit.oid === props.head.oid && <strong className="history-decoration">HEAD</strong>}
                 {decorations.map(name => {
                   const ref = refs.get(name);
@@ -167,7 +177,7 @@ export function CommitRows(props: CommitRowsProps) {
       </div>
       <HistoryGraph layout={layout} viewport={viewport} selectedOid={selectedOid} headOid={props.head.oid} onFrame={props.onGraphFrame} />
     </div>
-    {menu && !props.actionsLoading && menu.context === props.actionContext && <RefActionsMenu target={menu} filter={props.filter} onClose={closeMenu} onView={() => dispatch()} onFilter={dispatch} />}
+    {menu && !props.actionsLoading && menu.context === props.actionContext && <RefActionsMenu onAction={props.onAction ? dispatchAction : undefined} target={menu} filter={props.filter} onClose={closeMenu} onView={() => dispatch()} onFilter={dispatch} />}
     <div className="history-load-state">
       {props.error && <p role="alert">{props.error}</p>}
       {props.loading && <p role="status">Loading history…</p>}

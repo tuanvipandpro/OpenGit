@@ -141,3 +141,25 @@ it('S6-F01 restores current repository preferences/history/watch immediately aft
   expect(h.count('watch_repository')).toBe(2);
   expect(vi.mocked(h.api).mock.calls.filter(([name]) => name === 'watch_repository').map(([, request]) => ((request as { scope: HistoryScope }).scope).repoId)).toEqual([before.repoId, before.repoId]);
 });
+
+it('S3-FORM01 selection-owned lease invalidates immediately for worktree switches, ABA, forget and disposal', async () => {
+  const h = service(); await h.store.getState().initialize();
+  const initial = h.currentWorkspace().activeSelection!, first = h.store.getState().beginInteraction()!;
+  expect(await first.ready).toBe(true); const initialReads = h.count('inspect_repository');
+  await h.store.getState().requestRefresh('watch'); expect(h.count('inspect_repository')).toBe(initialReads);
+  h.emit('1'); await vi.advanceTimersByTimeAsync(250); expect(h.count('inspect_repository')).toBe(initialReads);
+  const selecting = h.store.getState().select({ repoId: initial.repoId, worktreeId: 'different-linked-tree' });
+  expect(first.isCurrent()).toBe(false); await first.closed; await selecting;
+  await h.store.getState().select(initial); const second = h.store.getState().beginInteraction()!;
+  expect(await second.ready).toBe(true); first.release(); expect(second.isCurrent()).toBe(true);
+  const reads = h.count('inspect_repository'); await h.store.getState().requestRefresh('watch');
+  const forget = h.store.getState().forget(initial.repoId); expect(second.isCurrent()).toBe(false); await forget;
+  second.release(); expect(h.count('inspect_repository')).toBe(reads);
+});
+it('S3-FORM01 last workspace owner disposal cancels its hold without flushing old-repo reads', async () => {
+  const h = service(); await h.store.getState().initialize();
+  const lease = h.store.getState().beginInteraction()!; await lease.ready;
+  const reads = h.count('inspect_repository'); await h.store.getState().requestRefresh('watch');
+  disposers[0](); await tick(); expect(lease.isCurrent()).toBe(false); await lease.closed;
+  lease.release(); expect(h.count('inspect_repository')).toBe(reads);
+});

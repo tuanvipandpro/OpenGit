@@ -14,7 +14,11 @@ pub(crate) fn write_to(
     let mut safe = snapshot.clone();
     safe.auth_prompt = None;
     if let Some(e) = &mut safe.error {
-        *e = crate::git::error::sanitized_error(e);
+        *e = if safe.kind == OperationSnapshotKind::Action {
+            crate::actions::safe_error(e)
+        } else {
+            crate::git::error::sanitized_error(e)
+        };
     }
     let serialized = serde_json::to_string(&safe).map_err(|_| db_error())?;
     if serialized.len() > 32768 {
@@ -41,7 +45,11 @@ pub fn load(db: &Database) -> Result<Vec<OperationSnapshot>, AppError> {
             serde_json::from_str(&text).map_err(|_| db_error())?;
         snapshot.auth_prompt = None;
         if let Some(e) = &mut snapshot.error {
-            *e = crate::git::error::sanitized_error(e);
+            *e = if snapshot.kind == OperationSnapshotKind::Action {
+                crate::actions::safe_error(e)
+            } else {
+                crate::git::error::sanitized_error(e)
+            };
         }
         snapshots.push(snapshot);
     }

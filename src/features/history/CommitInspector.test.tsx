@@ -57,3 +57,26 @@ it('keeps a captioned previous file/base visible while rebind loads and permits 
   expect(screen.getByText('Showing parent 2 · one.txt')).toBeInTheDocument();
   expect(api).toHaveBeenLastCalledWith('get_commit_diff', { context: freshContext, fileHandle: 'fresh-one' });
 });
+
+it('AC1 distinguishes full qualified containment, current/upstream, aliases and dated local tracking evidence', async () => {
+  const { createRepositorySyncStore } = await import('../../stores/repositorySync');
+  const { default: wire } = await import('../../../fixtures/contracts/daily-wire.json');
+  const sync = createRepositorySyncStore();
+  const branch = { name: 'refs/remotes/origin/main', oid: commit.oid, kind: 'remote' as const, observation: { remoteName: 'origin', observedOid: commit.oid, observedAt: '2026-01-01', matchesCurrent: true } };
+  sync.setState({ scope: context.scope, catalog: { ...wire.catalog, scope: context.scope } as never, containment: {
+    context, commitHandle: commit.handle, oid: commit.oid, observedAt: '2026-01-02', completeness: 'shallow', currentBranch: 'refs/heads/main', upstream: branch.name,
+    branches: [ { branch: { name: 'refs/heads/main', oid: commit.oid, kind: 'local', observation: null }, membership: 'contains' },
+      { branch: { name: 'refs/heads/same-oid', oid: commit.oid, kind: 'local', observation: null }, membership: 'contains' },
+      { branch, membership: 'unknown' }, { branch: { ...branch, name: 'refs/remotes/other/main', observation: null }, membership: 'doesNotContain' } ],
+  } });
+  const inspector = createCommitInspectorStore(); render(<CommitInspector store={inspector} selected={{ context, commit, outsideView: false }} syncStore={sync} layout="inline" onLayoutChange={vi.fn()} />);
+  const panel = screen.getByRole('region', { name: 'Commit branch containment' });
+  expect(panel).toHaveTextContent('refs/heads/same-oid'); expect(panel).toHaveTextContent('Current branch: refs/heads/main · Contains selected commit');
+  expect(panel).toHaveTextContent('Upstream: refs/remotes/origin/main · Containment unknown');
+  expect(panel).toHaveTextContent('Last successful app fetch: 2026-01-01');
+  expect(panel).toHaveTextContent('No matching successful app fetch evidence. Server state unknown.');
+  expect(screen.getByText('Symbolic branch aliases')).toBeInTheDocument();
+  expect(panel.querySelector('[data-ref-name="refs/remotes/origin/HEAD"]')).toBeNull();
+  act(() => sync.setState({ containmentRetained: true, containment: { ...sync.getState().containment!, branches: [{ branch: { ...branch, observation: { ...branch.observation, matchesCurrent: false } }, membership: 'unknown' }] } }));
+  expect(panel).toHaveTextContent('Previously loaded membership'); expect(panel).toHaveTextContent('does not match the current local tracking ref');
+});

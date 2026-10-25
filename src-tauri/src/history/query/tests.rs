@@ -1,4 +1,73 @@
 use super::*;
+#[cfg(windows)]
+#[tokio::test]
+async fn action_query_output_lease_preserves_pure_extra_ownership_after_query_drop_and_default_reads_still_work(
+) {
+    use std::os::windows::fs::OpenOptionsExt;
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().join("repository");
+    std::fs::create_dir(&root).unwrap();
+    let runner = GitRunner::discover().unwrap();
+    runner
+        .run(
+            Some(&root),
+            &argv(&["init", "-b", "main"]),
+            &Default::default(),
+            Phase::Inspection,
+        )
+        .await
+        .unwrap();
+    let root = std::fs::canonicalize(root).unwrap();
+    let git = std::fs::canonicalize(root.join(".git")).unwrap();
+    let location = RepositoryLocation {
+        common_identity: discovery::identity(&git).unwrap(),
+        root_identity: Some(discovery::identity(&root).unwrap()),
+        common: git.clone(),
+        git_dir: git,
+        root,
+        bare: false,
+    };
+    let default = Query::new(&runner, &location, Default::default())
+        .await
+        .unwrap();
+    assert_eq!(
+        default.fingerprint().await.unwrap().head.kind,
+        HeadKind::Unborn
+    );
+    drop(default);
+    let path = directory.path().join("exclusive pure read scope");
+    struct Lease {
+        _file: std::fs::File,
+    }
+    let extra = Arc::new(Lease {
+        _file: std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .share_mode(0)
+            .open(&path)
+            .unwrap(),
+    });
+    let query = Query::new_action(&runner, &location, Default::default(), extra.clone())
+        .await
+        .unwrap();
+    let retained = query.lifetime_guard();
+    drop(query);
+    drop(extra);
+    assert!(std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .share_mode(0)
+        .open(&path)
+        .is_err());
+    drop(retained);
+    assert!(std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .share_mode(0)
+        .open(&path)
+        .is_ok());
+}
 fn control() -> OrderControl {
     OrderControl {
         deadline: Instant::now() + Duration::from_secs(30),

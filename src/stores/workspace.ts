@@ -6,12 +6,13 @@ import type { StoreApi } from 'zustand';
 import type { HistoryState } from './history';
 import { createRepositoryWatch } from '../features/repository/repositoryWatch';
 import type { RepositorySubscribe } from '../features/repository/repositoryWatch';
-import type { RefreshReason } from '../features/repository/refresh';
+import type { RefreshReason, RefreshInteractionLease } from '../features/repository/refresh';
 export type Api = typeof call;
 export interface WorkspaceState {
   workspace: Workspace | null; snapshot: RepositorySnapshot | null; environment: Environment | null;
   error: AppError | null; inspectionError: AppError | null; loading: boolean; inspecting: boolean; refreshing: boolean; busy: boolean;
   requestRefresh(reason: RefreshReason): Promise<void>; startRefresh(): () => void;
+  beginInteraction(): RefreshInteractionLease | null;
   connectHistory(history: StoreApi<HistoryState>): () => void;
   initialize(): Promise<void>; reload(): Promise<void>; open(): Promise<void>; select(selection: Selection): Promise<void>; forget(repoId: string): Promise<void>; refresh(): Promise<void>; clearError(): void;
 }
@@ -27,7 +28,7 @@ export function createWorkspaceStore(api: Api = call, subscribe?: RepositorySubs
       const previous = get().workspace;
       if (previous && BigInt(workspace.revision) < BigInt(previous.revision)) return false;
       const selection = workspace.activeSelection;
-      if (!selection || !same(previous?.activeSelection, selection)) { generation++; scopeEpoch++; connection?.suspend(); set({ snapshot: null, inspectionError: null, inspecting: false, refreshing: false }); }
+      if (!selection || !same(previous?.activeSelection, selection)) { refresh.invalidateInteraction(); generation++; scopeEpoch++; connection?.suspend(); set({ snapshot: null, inspectionError: null, inspecting: false, refreshing: false }); }
       set({ workspace }); return true;
     };
     const inspect = async () => {
@@ -58,6 +59,7 @@ export function createWorkspaceStore(api: Api = call, subscribe?: RepositorySubs
     const refresh = createRefreshCoordinator({ scope, run, feedback: (key, visible) => { if (key === scope()) set({ refreshing: visible }); } });
     return { workspace: null, snapshot: null, environment: null, error: null, inspectionError: null, loading: true, inspecting: false, refreshing: false, busy: false,
       requestRefresh: reason => selectionPending ? Promise.resolve() : refresh.request(reason),
+      beginInteraction: () => selectionPending || get().busy ? null : refresh.acquireInteraction(),
       startRefresh: () => refresh.start(),
       connectHistory: history => {
         if (connection && connection.history !== history) throw Error('Workspace already has a history owner');
@@ -69,7 +71,7 @@ export function createWorkspaceStore(api: Api = call, subscribe?: RepositorySubs
           const stopRefresh = refresh.start();
           connection = { history, users: 0, retry: watch.retry,
             suspend: () => { watch.bind(null); history.getState().deactivate(); },
-            stop: () => { stopRefresh(); stopPreferences(); watch.dispose(); history.getState().deactivate(); } };
+            stop: () => { refresh.invalidateInteraction(); stopRefresh(); stopPreferences(); watch.dispose(); history.getState().deactivate(); } };
           bind();
         }
         const owner = connection; owner.users++;
@@ -108,6 +110,7 @@ export function createWorkspaceStore(api: Api = call, subscribe?: RepositorySubs
       select: selection => {
         if (!selectionPending && same(get().workspace?.activeSelection, selection)) return Promise.resolve();
         const ticket = ++intent; selectionPending = true;
+        refresh.invalidateInteraction();
         generation++; scopeEpoch++; connection?.suspend(); set({ snapshot: null, inspecting: true, refreshing: false, inspectionError: null, error: null, busy: true });
         const work = selections.then(async () => {
           if (ticket !== intent) return;
@@ -124,6 +127,7 @@ export function createWorkspaceStore(api: Api = call, subscribe?: RepositorySubs
         const active = get().workspace?.activeSelection?.repoId === repoId;
         const ticket = active ? ++intent : intent;
         if (active) {
+          refresh.invalidateInteraction();
           selectionPending = true; generation++; scopeEpoch++; connection?.suspend();
           set({ busy: true, snapshot: null, inspecting: false, refreshing: false });
         }

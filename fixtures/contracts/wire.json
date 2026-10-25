@@ -463,7 +463,8 @@
       "Io",
       "Database",
       "Interrupted",
-      "Internal"
+      "Internal",
+      "UnsupportedAction"
     ],
     "Phase": [
       "validation",

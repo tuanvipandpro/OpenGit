@@ -22,7 +22,7 @@ import subprocess
 import tempfile
 import threading
 import time
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import asyncssh
 from cryptography import x509
@@ -32,7 +32,7 @@ from cryptography.x509.oid import NameOID
 
 
 class LiveRemotes:
-    def __init__(self, workspace: Path):
+    def __init__(self, workspace: Path, *, writable: bool = False):
         self.workspace = workspace.resolve()
         temp_parent = self.workspace / '.tmp'
         temp_parent.mkdir(exist_ok=True)
@@ -43,6 +43,7 @@ class LiveRemotes:
         if not self.root.is_relative_to(temp_parent.resolve()):
             raise RuntimeError('Invalid owned fixture directory')
         self.username = 'fixture'
+        self.writable = writable
         self.password = secrets.token_urlsafe(32)
         self.key_passphrase = secrets.token_urlsafe(32)
         self._client_key = asyncssh.generate_private_key('ssh-ed25519')
@@ -62,6 +63,7 @@ class LiveRemotes:
                   '-c', 'user.email=fixture@invalid.example', 'commit', '-m', 'Fixture')
         self.repository = self.root / 'repo.git'
         self._git('clone', '--bare', '--', str(self.source), str(self.repository))
+        self._git('-C', str(self.repository), 'config', 'http.receivepack', 'true' if writable else 'false')
         self.ca_file = self.root / 'fixture-ca.pem'
         self.known_hosts = self.root / 'known_hosts'
         self.known_hosts.touch()
@@ -122,8 +124,17 @@ class LiveRemotes:
                     self.end_headers()
                     return
                 parsed = urlsplit(self.path)
-                if parsed.path not in ('/repo.git/info/refs', '/repo.git/git-upload-pack'):
+                allowed_paths = ('/repo.git/info/refs', '/repo.git/git-upload-pack', '/repo.git/git-receive-pack')
+                if parsed.path not in allowed_paths:
                     self.send_error(404)
+                    return
+                receiving = parsed.path == '/repo.git/git-receive-pack' or (
+                    parse_qs(parsed.query).get('service') == ['git-receive-pack'])
+                if receiving and not fixture.writable:
+                    self.send_error(403)
+                    return
+                if self.headers.get('Transfer-Encoding'):
+                    self.send_error(411)  # Bounded owned fixtures use known-length small packs.
                     return
                 length = int(self.headers.get('Content-Length', '0'))
                 if not 0 <= length <= 8 * 1024 * 1024:
@@ -188,10 +199,14 @@ class LiveRemotes:
                 return hmac.compare_digest(username, fixture.username) and hmac.compare_digest(password, fixture.password)
 
         async def serve(process):
-            if process.command != "git-upload-pack '/repo.git'":
+            services = {"git-upload-pack '/repo.git'": 'upload-pack'}
+            if fixture.writable:
+                services["git-receive-pack '/repo.git'"] = 'receive-pack'
+            service = services.get(process.command)
+            if service is None:
                 process.exit(1)
                 return
-            child = await asyncio.create_subprocess_exec(fixture.git, 'upload-pack', str(fixture.repository),
+            child = await asyncio.create_subprocess_exec(fixture.git, service, str(fixture.repository),
                 stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE, env=fixture.env,
                 creationflags=0x08000000 if os.name == 'nt' else 0)

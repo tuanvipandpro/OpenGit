@@ -337,6 +337,7 @@ impl Pins {
     }
 }
 pub(crate) struct Query<'a> {
+    extra_lifetime: Option<Arc<dyn Send + Sync>>,
     runner: &'a GitRunner,
     location: RepositoryLocation,
     deadline: Instant,
@@ -390,13 +391,38 @@ pub(crate) fn read_metadata(path: &Path, max: usize) -> Result<Vec<u8>, AppError
     }
 }
 impl<'a> Query<'a> {
+    fn lifetime_guard(&self) -> Arc<dyn Send + Sync> {
+        if let Some(extra) = &self.extra_lifetime {
+            Arc::new((self.pins.clone(), extra.clone()))
+        } else {
+            self.pins.clone()
+        }
+    }
     pub async fn new(
         runner: &'a GitRunner,
         location: &RepositoryLocation,
         cancel: Cancellation,
     ) -> Result<Self, AppError> {
+        Self::new_scoped(runner, location, cancel, None).await
+    }
+    /// Attach pure scope/read ownership before even the first mapping process.
+    pub(crate) async fn new_action(
+        runner: &'a GitRunner,
+        location: &RepositoryLocation,
+        cancel: Cancellation,
+        lifetime: Arc<dyn Send + Sync>,
+    ) -> Result<Self, AppError> {
+        Self::new_scoped(runner, location, cancel, Some(lifetime)).await
+    }
+    async fn new_scoped(
+        runner: &'a GitRunner,
+        location: &RepositoryLocation,
+        cancel: Cancellation,
+        extra_lifetime: Option<Arc<dyn Send + Sync>>,
+    ) -> Result<Self, AppError> {
         let pins = Arc::new(Pins::new(location)?);
         let query = Self {
+            extra_lifetime,
             runner,
             location: location.clone(),
             deadline: Instant::now() + Duration::from_secs(30),
@@ -507,6 +533,7 @@ impl<'a> Query<'a> {
         }
         command.extend_from_slice(args);
         let cancel = Cancellation::default();
+        let lifetime = self.lifetime_guard();
         let running = runner.output_history(
             Some(&self.location.root),
             &command,
@@ -518,7 +545,7 @@ impl<'a> Query<'a> {
                     ("GIT_NO_REPLACE_OBJECTS".into(), "1".into()),
                     ("GIT_NO_LAZY_FETCH".into(), "1".into()),
                 ],
-                lifetime_guard: Some(self.pins.clone()),
+                lifetime_guard: Some(lifetime),
                 ..Default::default()
             },
             input,

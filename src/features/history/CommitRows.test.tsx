@@ -46,6 +46,20 @@ const properties = (count: number): CommitRowsProps => ({ layout: makeLayout(cou
   { name: 'refs/tags/v1', displayName: 'v1', commitOid: 'c0', oid: 'tag-object', kind: 'tag', hidden: false, symbolicTarget: null }],
   filter: { hiddenRefs: ['refs/tags/v1'], soloRefs: [] }, onSelect: vi.fn(), hasMore: true, loading: false, onLoadMore: vi.fn(), onAnchorChange: vi.fn() });
 
+it('S7 dispatches the exact qualified same-commit ref action and preserves filter/selection/focus', async () => {
+  const props = { ...properties(20), filter: { hiddenRefs: [], soloRefs: [] }, onSelectRef: vi.fn(), onFilterAction: vi.fn(), onAction: vi.fn(), onCommitAction: vi.fn() };
+  const view = render(<CommitRows {...props} />);
+  const tag = await screen.findByRole('button', { name: 'Actions for refs/tags/v1' }); fireEvent.click(tag);
+  expect(screen.queryByRole('menuitem', { name: 'Switch branch' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Delete local tag' }));
+  expect(props.onAction).toHaveBeenLastCalledWith({ kind: 'tagDelete', refName: 'refs/tags/v1' }); expect(tag).toHaveFocus();
+  const branch = screen.getByRole('button', { name: 'Actions for refs/heads/main' }); fireEvent.click(branch);
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Set or unset upstream' }));
+  expect(props.onAction).toHaveBeenLastCalledWith({ kind: 'branchTracking', refName: 'refs/heads/main' });
+  expect(props.onFilterAction).not.toHaveBeenCalled(); expect(props.onSelect).not.toHaveBeenCalled();
+  fireEvent.contextMenu(view.container.querySelector('[data-oid=c0]')!); expect(props.onSelect).toHaveBeenLastCalledWith('c0'); expect(props.onCommitAction).toHaveBeenLastCalledWith('c0');
+});
+
 it('uses real TanStack Virtual to bound 10k DOM rows, synchronize graph scrolling and preserve append/selection', async () => {
   const props = properties(10_000), frames = vi.fn<(frame: HistoryGraphFrame) => void>();
   const view = render(<StrictMode><CommitRows {...props} onGraphFrame={frames} /></StrictMode>);

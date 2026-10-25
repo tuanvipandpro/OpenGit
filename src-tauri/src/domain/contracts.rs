@@ -1,3 +1,7 @@
+pub use super::changes::*;
+pub use super::daily::*;
+pub use super::ref_actions::*;
+pub use super::remote_actions::*;
 // Additive v0.2 history DTOs retain the foundation import surface.
 pub use super::history::*;
 use serde::{Deserialize, Serialize};
@@ -159,6 +163,10 @@ pub struct OperationSnapshot {
     pub id: Id,
     pub sequence: Counter,
     pub kind: OperationSnapshotKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action_kind: Option<ActionKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<ActionOutcome>,
     pub state: OperationState,
     pub phase: Phase,
     pub repo_id: Option<Id>,
@@ -191,6 +199,8 @@ pub struct OperationEvent {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorCode {
+    #[serde(rename = "UnsupportedAction")]
+    UnsupportedAction,
     #[serde(rename = "InvalidRequest")]
     InvalidRequest,
     #[serde(rename = "InvalidHandle")]
@@ -423,6 +433,8 @@ pub enum ProgressUnit {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OperationSnapshotKind {
+    #[serde(rename = "action")]
+    Action,
     #[serde(rename = "clone")]
     Clone,
 }
@@ -490,7 +502,7 @@ pub enum CloneSource {
         source_handle: Id,
     },
 }
-fn required_nullable<'de, D: serde::Deserializer<'de>, T: Deserialize<'de>>(
+pub(crate) fn required_nullable<'de, D: serde::Deserializer<'de>, T: Deserialize<'de>>(
     d: D,
 ) -> Result<Option<T>, D::Error> {
     Option::deserialize(d)

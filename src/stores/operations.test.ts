@@ -1,0 +1,93 @@
+import { expect, it, vi } from 'vitest';
+import type { ActionOperationResult, AppError, OperationSnapshot, OperationsSnapshot } from '../contracts';
+import type { Api } from './workspace';
+import { createOperationsStore } from './operations';
+import wire from '../../fixtures/contracts/daily-wire.json';
+import refWire from '../../fixtures/contracts/ref-actions-wire.json';
+const operation = wire.operation as OperationSnapshot;
+const action = (id: string): OperationSnapshot => ({ ...operation, id, sequence: '1', kind: 'action', actionKind: 'fetch', state: 'Failed' });
+const result = (value: OperationSnapshot, prune = false): ActionOperationResult => ({ operation: value, fetch: { prune, remotes: [] } });
+const failure: AppError = { code: 'Internal', phase: 'inspection', retry: 'retry', message: 'Result unavailable' };
+function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
+
+it('S7 routes local-ref evidence through ref outcomes and retires it with authoritative removal', async () => {
+  const local = refWire.result.operation as OperationSnapshot;
+  let next: OperationsSnapshot = { streamId: 'refs', sequence: local.sequence, operations: [local] };
+  const api = vi.fn(async (command: string) => command === 'get_operations' ? { ok: true, value: next } : { ok: true, value: refWire.result }) as unknown as Api;
+  const store = createOperationsStore(api); await store.getState().sync(); await store.getState().loadOutcome(local.id);
+  expect(api).toHaveBeenCalledWith('get_ref_action_outcome', { operationId: local.id });
+  expect(store.getState().outcomes[local.id].refResult).toEqual(refWire.result.result); expect(store.getState().outcomes[local.id].fetch).toBeNull();
+  next = { ...next, sequence: '4', operations: [] }; await store.getState().sync(); expect(store.getState().outcomes).toEqual({});
+});
+
+it('S7 fences local-ref replies after stream replacement and handles unavailable evidence', async () => {
+  const local = refWire.result.operation as OperationSnapshot, old = deferred<unknown>();
+  let next: OperationsSnapshot = { streamId: 'refs', sequence: local.sequence, operations: [local] }, count = 0;
+  const api = vi.fn(async (command: string) => command === 'get_operations' ? { ok: true, value: next } : ++count === 1 ? old.promise : { ok: true, value: { operation: local, result: null } }) as unknown as Api;
+  const store = createOperationsStore(api); await store.getState().sync(); const pending = store.getState().loadOutcome(local.id);
+  next = { ...next, streamId: 'replacement' }; await store.getState().sync(); await store.getState().loadOutcome(local.id);
+  old.resolve({ ok: true, value: refWire.result }); await pending;
+  expect(store.getState().outcomes[local.id].refResult).toBeNull();
+});
+
+it('S3-CACHE01 retires outcomes/errors over 50 authoritative compaction rounds and retains a visible result', async () => {
+  const survivor = action('survivor');
+  let next: OperationsSnapshot = { streamId: 'initial', sequence: '1', operations: [survivor] };
+  const errors = new Set<string>();
+  const api = vi.fn(async (command: string, request: { operationId?: string }) => command === 'get_operations' ? { ok: true, value: next }
+    : errors.has(request.operationId!) ? { ok: false, error: failure }
+      : { ok: true, value: result(next.operations.find(value => value.id === request.operationId)!) }) as unknown as Api;
+  const store = createOperationsStore(api); await store.getState().sync(); await store.getState().loadOutcome(survivor.id);
+  const retained = store.getState().outcomes[survivor.id];
+  for (let round = 0; round < 50; round++) {
+    const ephemeral = action(`compacted-${round}`), errored = action(`errored-${round}`); errors.add(errored.id);
+    next = { streamId: `append-${round}`, sequence: '2', operations: [survivor, ephemeral, errored] };
+    await store.getState().sync(); await store.getState().loadOutcome(ephemeral.id); await store.getState().loadOutcome(errored.id);
+    expect(Object.keys(store.getState().outcomes)).toHaveLength(2); expect(Object.keys(store.getState().outcomeErrors)).toEqual([errored.id]);
+    next = { streamId: `compacted-stream-${round}`, sequence: '3', operations: [survivor] }; await store.getState().sync();
+    expect(Object.keys(store.getState().outcomes)).toEqual([survivor.id]); expect(store.getState().outcomeErrors).toEqual({});
+    expect(store.getState().outcomes[survivor.id]).toBe(retained);
+  }
+  next = { streamId: 'empty', sequence: '4', operations: [] }; await store.getState().sync();
+  expect(store.getState().snapshot!.operations).toEqual([]); expect(store.getState().outcomes).toEqual({}); expect(store.getState().outcomeErrors).toEqual({});
+});
+
+it('S3-CACHE01 fences removed/reintroduced equivalent IDs and stream-retired pending success/error responses', async () => {
+  const value = action('reintroduced');
+  let next: OperationsSnapshot = { streamId: 'first', sequence: '1', operations: [value] };
+  const requests: ReturnType<typeof deferred<unknown>>[] = [];
+  const api = vi.fn(async (command: string) => {
+    if (command === 'get_operations') return { ok: true, value: next };
+    const request = deferred<unknown>(); requests.push(request); return request.promise;
+  }) as unknown as Api;
+  const store = createOperationsStore(api); await store.getState().sync();
+  const oldRead = store.getState().loadOutcome(value.id);
+  next = { ...next, sequence: '2', operations: [] }; await store.getState().sync();
+  next = { ...next, sequence: '3', operations: [value] }; await store.getState().sync();
+  const freshRead = store.getState().loadOutcome(value.id); expect(requests).toHaveLength(2);
+  requests[0].resolve({ ok: true, value: result(value, false) }); await oldRead;
+  expect(store.getState().outcomes[value.id]).toBeUndefined();
+  requests[1].resolve({ ok: true, value: result(value, true) }); await freshRead;
+  expect(store.getState().outcomes[value.id].fetch!.prune).toBe(true);
+  const oldStreamRead = store.getState().loadOutcome(value.id);
+  next = { ...next, streamId: 'rotated' }; await store.getState().sync();
+  const currentStreamRead = store.getState().loadOutcome(value.id); expect(requests).toHaveLength(4);
+  requests[2].resolve({ ok: false, error: failure }); await oldStreamRead;
+  expect(store.getState().outcomeErrors).toEqual({}); expect(store.getState().outcomes[value.id].fetch!.prune).toBe(true);
+  requests[3].resolve({ ok: true, value: result(value, false) }); await currentStreamRead;
+  expect(store.getState().outcomes[value.id].fetch!.prune).toBe(false);
+});
+
+it('S3-CACHE01 prunes only accepted snapshots and invalidates stale cache/request versions on accepted events', async () => {
+  let receive!: (event: import('../contracts').OperationEvent) => void;
+  const value = action('visible'); let next: OperationsSnapshot = { streamId: 'stream', sequence: '5', operations: [value] };
+  const api = vi.fn(async (command: string) => command === 'get_operations' ? { ok: true, value: next } : { ok: true, value: result(value) }) as unknown as Api;
+  const store = createOperationsStore(api, async handler => { receive = handler; return () => {}; }); const stop = await store.getState().start();
+  try {
+    await store.getState().loadOutcome(value.id); const retained = store.getState().outcomes[value.id];
+    next = { ...next, sequence: '4', operations: [] }; await store.getState().sync();
+    expect(store.getState().outcomes[value.id]).toBe(retained); expect(store.getState().snapshot!.operations).toHaveLength(1);
+    receive({ streamId: 'stream', sequence: '6', operation: { ...value, sequence: '6', updatedAt: '2099-01-01', state: 'Interrupted' } });
+    expect(store.getState().outcomes).toEqual({});
+  } finally { stop(); }
+});

@@ -57,6 +57,7 @@ pub fn ssh_prompt_unavailable(value: AppError) -> AppError {
 /// Messages are static templates: never format subprocess output into a sink.
 pub fn error(code: ErrorCode, phase: Phase) -> AppError {
     let (message, retry) = match code {
+        ErrorCode::UnsupportedAction => ("This repository action is not supported yet.", AppErrorRetry::None),
         ErrorCode::GitUnavailable => ("Git executable is unavailable.", AppErrorRetry::Retry),
         ErrorCode::NotRepository => ("Choose a Git repository.", AppErrorRetry::ReopenRepository),
         ErrorCode::RepositoryUnavailable | ErrorCode::ExternalChange => (

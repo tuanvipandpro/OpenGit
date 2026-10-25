@@ -1,0 +1,481 @@
+{
+  "intents": [
+    {
+      "kind": "fetch",
+      "remoteHandles": [
+        "79e786f500d16be3cdae162ea9c45f9899a0fb34f69a489a8239022b7a805bbf"
+      ],
+      "prune": false
+    },
+    {
+      "kind": "branchCreate",
+      "name": "topic/new",
+      "startHandle": "4d77f25e0e6f754a18acf4902919c525b19f26f84abbe51c823548a32027b4cc",
+      "checkout": false
+    },
+    {
+      "kind": "branchRename",
+      "branchHandle": "4218c345963c3cfa0db503e4cd7655ca3edd01de8cf33849dd8bede83a72c163",
+      "newName": "topic/new"
+    },
+    {
+      "kind": "branchSwitch",
+      "branchHandle": "50ceed6f8f11d84660ef790bc6f14383c2fff61d40ffcab628edcf61363de215"
+    },
+    {
+      "kind": "branchDelete",
+      "branchHandle": "b49aacc6e412bf65c8e59a573dee369d8687c3a68b095ddd75ab0a8e44c89704"
+    },
+    {
+      "kind": "branchTracking",
+      "branchHandle": "fff3f2f8c17c90570c0c9b0511655e92efd7cff6d1b118ffd2495136d8d03c04",
+      "upstreamHandle": null
+    },
+    {
+      "kind": "tagCreate",
+      "name": "topic/new",
+      "targetHandle": "c9f1cc4299c297a4f26af5c2533f1952656d21faa1b6d5fdb8726168a629e6ef",
+      "annotation": {
+        "kind": "annotated",
+        "message": "User annotation (wire only; never journalled)",
+        "sign": true
+      }
+    },
+    {
+      "kind": "tagDelete",
+      "tagHandle": "9368bdad06fafc17d43ea3b199873104d520c85a5c7b34a837594433a058ebc8"
+    },
+    {
+      "kind": "push",
+      "remoteHandle": "ca3b10c7236e55570d02ef063a0a5b172991390f6c88e69eca097c1c1b2fb296",
+      "sourceHandle": "bcf3059a4fb789355a07e7e9739f1911a807d4eef2a4be7daa7e9eb08cfe4fab",
+      "destinationHandle": "2ef890b125ce25262305c121ed906d79ca1706419cfe02657e89f05fa02a98c2",
+      "setUpstream": false
+    },
+    {
+      "kind": "remoteTagPush",
+      "remoteHandle": "3de5cde1e32884002ac367d45e42118b016a5f93107c2c5f4ae2fc0a2f856cc0",
+      "tagHandle": "26aa6d46baade17a4a32375805bb8d56199892350df94954146b403af5931680",
+      "destinationHandle": "00d0a5013f82cb5d91d88ccb61b875b480c6f2482a42364bdadc9bc7ff987dda"
+    },
+    {
+      "kind": "remoteTagDelete",
+      "remoteHandle": "3498f809f9cc5ca59b7efe6368e3e9b680fd4ca78ec04d3f776c1c2ab0605a86",
+      "tagHandle": "f713b89ceef3ec42fbd01d27da8f1ca3e25b38e77b86492fd704def9215d2d2b"
+    },
+    {
+      "kind": "pull",
+      "upstreamHandle": "ffd8a76b7a8a01387f66f857e2e3734a35d18806e3906a7a35f4daab4ab52527"
+    },
+    {
+      "kind": "stage",
+      "changeHandles": [
+        "9d752970d2029fd7020b21fd988efca4b7878ec8b377e3a582f1280cf77754df"
+      ]
+    },
+    {
+      "kind": "unstage",
+      "changeHandles": [
+        "73ce2d9064c56a58daac31b4c7c7305bd9953f20f00ba1c96b38d10ede211eae"
+      ]
+    },
+    {
+      "kind": "stageSelection",
+      "selectionHandles": [
+        "dbbe88c5d72f918bcedaebdaee4661690222fed56f687d1b4fbfc453ebd110c4"
+      ]
+    },
+    {
+      "kind": "unstageSelection",
+      "selectionHandles": [
+        "b0c9d451fac6026709ab2ba5af57622b630f38f07add40dd0462a56d435e6c1c"
+      ]
+    },
+    {
+      "kind": "commit",
+      "message": "User message (wire only; never journalled)",
+      "amend": false
+    },
+    {
+      "kind": "stashPush",
+      "message": "User message (wire only; never journalled)",
+      "includeUntracked": false
+    },
+    {
+      "kind": "stashApply",
+      "stashHandle": "1b738348367fe1741a611ab5c5ba63e41504c05c2a75194fabfa81a6bd1f5c37"
+    },
+    {
+      "kind": "stashPop",
+      "stashHandle": "4cc4bd046e0fc25ac8c655fdd0fbbf6ce2e8da815b82043aa5d4c715fcdb6c46"
+    },
+    {
+      "kind": "stashDrop",
+      "stashHandle": "19d2c723a59e90446043aa0edc5e0f92ff5158483802debf0431422eb7146d17"
+    }
+  ],
+  "prepared": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    },
+    "planId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "kind": "branchSwitch",
+    "expiresAt": "2026-10-25T01:00:00Z",
+    "warnings": [
+      "externalRace"
+    ]
+  },
+  "outcomes": [
+    {
+      "effects": "applied",
+      "recovery": "none",
+      "cancellationRequested": true,
+      "repositoryChanged": true,
+      "observedAt": "2026-10-25T01:00:00Z"
+    },
+    {
+      "effects": "notApplied",
+      "recovery": "none",
+      "cancellationRequested": true,
+      "repositoryChanged": false,
+      "observedAt": "2026-10-25T01:00:00Z"
+    },
+    {
+      "effects": "conflict",
+      "recovery": "resolveConflicts",
+      "cancellationRequested": true,
+      "repositoryChanged": true,
+      "observedAt": "2026-10-25T01:00:00Z"
+    },
+    {
+      "effects": "partial",
+      "recovery": "inspect",
+      "cancellationRequested": true,
+      "repositoryChanged": true,
+      "observedAt": "2026-10-25T01:00:00Z"
+    },
+    {
+      "effects": "unknown",
+      "recovery": "inspect",
+      "cancellationRequested": true,
+      "repositoryChanged": true,
+      "observedAt": "2026-10-25T01:00:00Z"
+    }
+  ],
+  "operation": {
+    "id": "00000000-0000-4000-8000-000000000030",
+    "sequence": "3",
+    "kind": "action",
+    "state": "Succeeded",
+    "phase": "verification",
+    "repoId": "repo",
+    "worktreeId": "tree",
+    "sourceDisplay": "Repository action",
+    "destinationDisplay": "Selected repository",
+    "progress": null,
+    "canCancel": false,
+    "authPrompt": null,
+    "error": null,
+    "createdAt": "2026-10-25T00:00:00Z",
+    "updatedAt": "2026-10-25T01:00:00Z",
+    "actionKind": "branchSwitch",
+    "outcome": {
+      "effects": "applied",
+      "recovery": "none",
+      "cancellationRequested": true,
+      "repositoryChanged": true,
+      "observedAt": "2026-10-25T01:00:00Z"
+    }
+  },
+  "catalogRequest": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    }
+  },
+  "catalog": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    },
+    "snapshotId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "observedAt": "2026-10-25T01:00:00Z",
+    "head": {
+      "kind": "branch",
+      "branch": "main",
+      "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "branches": [
+      {
+        "name": "refs/heads/main",
+        "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "kind": "local",
+        "observation": null
+      },
+      {
+        "name": "refs/remotes/origin/main",
+        "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "kind": "remote",
+        "observation": {
+          "remoteName": "origin",
+          "observedOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-25T01:00:00Z",
+          "matchesCurrent": true
+        }
+      },
+      {
+        "name": "refs/heads/orphan",
+        "oid": "cccccccccccccccccccccccccccccccccccccccc",
+        "kind": "local",
+        "observation": null
+      }
+    ],
+    "symbolicBranches": [
+      {
+        "name": "refs/remotes/origin/HEAD",
+        "target": "refs/remotes/origin/main"
+      }
+    ],
+    "remotes": [
+      {
+        "name": "origin",
+        "handle": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "fetch": "eligibleProbeRequired"
+      }
+    ],
+    "sync": {
+      "currentBranch": "refs/heads/main",
+      "upstream": "refs/remotes/origin/main",
+      "ahead": "0",
+      "behind": "0",
+      "completeness": "complete"
+    }
+  },
+  "containmentRequest": {
+    "context": {
+      "scope": {
+        "repoId": "repo",
+        "worktreeId": "tree",
+        "generation": "9007199254740993"
+      },
+      "snapshotId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "commitHandle": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  },
+  "containment": {
+    "context": {
+      "scope": {
+        "repoId": "repo",
+        "worktreeId": "tree",
+        "generation": "9007199254740993"
+      },
+      "snapshotId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "commitHandle": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "observedAt": "2026-10-25T01:00:00Z",
+    "branches": [
+      {
+        "branch": {
+          "name": "refs/heads/main",
+          "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "kind": "local",
+          "observation": null
+        },
+        "membership": "contains"
+      },
+      {
+        "branch": {
+          "name": "refs/remotes/origin/main",
+          "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "kind": "remote",
+          "observation": {
+            "remoteName": "origin",
+            "observedOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "observedAt": "2026-10-25T01:00:00Z",
+            "matchesCurrent": true
+          }
+        },
+        "membership": "contains"
+      },
+      {
+        "branch": {
+          "name": "refs/heads/orphan",
+          "oid": "cccccccccccccccccccccccccccccccccccccccc",
+          "kind": "local",
+          "observation": null
+        },
+        "membership": "doesNotContain"
+      }
+    ],
+    "currentBranch": "refs/heads/main",
+    "upstream": "refs/remotes/origin/main",
+    "completeness": "complete"
+  },
+  "shallowContainment": {
+    "context": {
+      "scope": {
+        "repoId": "repo",
+        "worktreeId": "tree",
+        "generation": "9007199254740993"
+      },
+      "snapshotId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "commitHandle": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "observedAt": "2026-10-25T01:00:00Z",
+    "branches": [
+      {
+        "branch": {
+          "name": "refs/heads/main",
+          "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "kind": "local",
+          "observation": null
+        },
+        "membership": "contains"
+      },
+      {
+        "branch": {
+          "name": "refs/remotes/origin/main",
+          "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "kind": "remote",
+          "observation": {
+            "remoteName": "origin",
+            "observedOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "observedAt": "2026-10-25T01:00:00Z",
+            "matchesCurrent": true
+          }
+        },
+        "membership": "unknown"
+      },
+      {
+        "branch": {
+          "name": "refs/heads/orphan",
+          "oid": "cccccccccccccccccccccccccccccccccccccccc",
+          "kind": "local",
+          "observation": null
+        },
+        "membership": "unknown"
+      }
+    ],
+    "currentBranch": "refs/heads/main",
+    "upstream": "refs/remotes/origin/main",
+    "completeness": "shallow"
+  },
+  "actionOperationResult": {
+    "operation": {
+      "id": "00000000-0000-4000-8000-000000000030",
+      "sequence": "3",
+      "kind": "action",
+      "state": "Succeeded",
+      "phase": "verification",
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "sourceDisplay": "Repository action",
+      "destinationDisplay": "Selected repository",
+      "progress": null,
+      "canCancel": false,
+      "authPrompt": null,
+      "error": null,
+      "createdAt": "2026-10-25T00:00:00Z",
+      "updatedAt": "2026-10-25T01:00:00Z",
+      "actionKind": "fetch",
+      "outcome": {
+        "effects": "applied",
+        "recovery": "none",
+        "cancellationRequested": true,
+        "repositoryChanged": true,
+        "observedAt": "2026-10-25T01:00:00Z"
+      }
+    },
+    "fetch": {
+      "prune": false,
+      "remotes": [
+        {
+          "name": "origin",
+          "phase": "observed",
+          "effects": "applied",
+          "error": null,
+          "reportedRefs": [
+            {
+              "name": "refs/remotes/origin/created",
+              "oldOid": null,
+              "newOid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "status": "created"
+            },
+            {
+              "name": "refs/remotes/origin/updated",
+              "oldOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "newOid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "status": "updated"
+            },
+            {
+              "name": "refs/remotes/origin/forced",
+              "oldOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "newOid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "status": "forced"
+            },
+            {
+              "name": "refs/remotes/origin/deleted",
+              "oldOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "newOid": null,
+              "status": "deleted"
+            },
+            {
+              "name": "refs/remotes/origin/upToDate",
+              "oldOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "newOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "status": "upToDate"
+            }
+          ],
+          "observedAt": "2026-10-25T01:00:00Z"
+        }
+      ]
+    }
+  },
+  "unknownWithoutLedger": {
+    "operation": {
+      "id": "00000000-0000-4000-8000-000000000030",
+      "sequence": "3",
+      "kind": "action",
+      "state": "Interrupted",
+      "phase": "recovery",
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "sourceDisplay": "Repository action",
+      "destinationDisplay": "Selected repository",
+      "progress": null,
+      "canCancel": false,
+      "authPrompt": null,
+      "error": null,
+      "createdAt": "2026-10-25T00:00:00Z",
+      "updatedAt": "2026-10-25T01:00:00Z",
+      "actionKind": "fetch",
+      "outcome": {
+        "effects": "unknown",
+        "recovery": "inspect",
+        "cancellationRequested": true,
+        "repositoryChanged": true,
+        "observedAt": "2026-10-25T01:00:00Z"
+      }
+    },
+    "fetch": null
+  },
+  "fetchCapabilities": [
+    "eligibleProbeRequired",
+    "unsupportedTransport",
+    "unsupportedRefspec",
+    "mirror",
+    "noRefspec"
+  ],
+  "unsupportedAction": {
+    "code": "UnsupportedAction",
+    "message": "This repository action is not supported yet.",
+    "phase": "validation",
+    "retry": "none"
+  }
+}

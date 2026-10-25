@@ -3,7 +3,7 @@ export type Id = string; // opaque, nonempty, backend-issued; không suy ra path
 export type Counter = string; // decimal không dấu, so sánh số nguyên; không ép JS number
 export type Timestamp = string; // UTC RFC3339
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: AppError };
-export type ErrorCode = 'InvalidRequest' | 'InvalidHandle' | 'NotFound' | 'GitUnavailable'
+export type ErrorCode = 'UnsupportedAction' | 'InvalidRequest' | 'InvalidHandle' | 'NotFound' | 'GitUnavailable'
   | 'UnsupportedGit' | 'NotRepository' | 'RepositoryUnavailable' | 'UnsafeRepository'
   | 'DestinationExists' | 'DestinationBusy' | 'UnsafePath' | 'InvalidSource'
   | 'AuthenticationRequired' | 'AuthenticationFailed' | 'PermissionDenied'
@@ -48,7 +48,7 @@ export type OperationState = 'Queued' | 'Running' | 'WaitingForUser' | 'Cancelli
 export type AuthPrompt = { promptHandle: Id; kind: 'username' | 'password' | 'passphrase' | 'confirmation';
   message: string; expiresAt: Timestamp }; // message theo template, không raw Git prompt
 export type Progress = { completed: number; total: number | null; unit: 'objects' | 'bytes' | 'steps' };
-export type OperationSnapshot = { id: Id; sequence: Counter; kind: 'clone'; state: OperationState;
+export type OperationSnapshot = { id: Id; sequence: Counter; kind: 'clone' | 'action'; actionKind?: import('./daily').ActionKind; outcome?: import('./daily').ActionOutcome; state: OperationState;
   phase: Phase; repoId: Id | null; worktreeId: Id | null; sourceDisplay: string;
   destinationDisplay: string; progress: Progress | null; canCancel: boolean;
   authPrompt: AuthPrompt | null; error: AppError | null;

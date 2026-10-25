@@ -4,3 +4,7 @@ export * from './errors';
 export * from './events';
 export * from './client';
 export * from './history';
+export * from './daily';
+export * from './ref_actions';
+export * from './remote_actions';
+export * from './changes';

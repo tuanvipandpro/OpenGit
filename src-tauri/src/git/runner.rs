@@ -45,8 +45,39 @@ pub struct RunOptions {
     pub environment: Vec<(OsString, OsString)>,
     pub interactive: bool,
     pub lifetime_guard: Option<Arc<dyn Send + Sync>>,
+    pub trusted_index: Option<TrustedOwnedIndex>,
     #[cfg(windows)]
     pub before_resume: Option<SpawnCallback>,
+}
+/// Only the index transaction can construct this. Applied after environment scrub.
+#[derive(Clone)]
+pub struct TrustedOwnedIndex {
+    path: PathBuf,
+    identity: Vec<u8>,
+}
+impl TrustedOwnedIndex {
+    pub(crate) fn new(path: PathBuf, identity: Vec<u8>) -> Result<Self, AppError> {
+        let leaf = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .ok_or_else(|| error(ErrorCode::UnsafePath, Phase::Validation))?;
+        if !path.is_absolute()
+            || leaf
+                .strip_prefix("action-index-")
+                .is_none_or(|s| s.len() != 64 || !s.bytes().all(|b| b.is_ascii_hexdigit()))
+        {
+            return Err(error(ErrorCode::UnsafePath, Phase::Validation));
+        }
+        let v = Self { path, identity };
+        v.validate()?;
+        Ok(v)
+    }
+    pub(crate) fn validate(&self) -> Result<(), AppError> {
+        if crate::repositories::discovery::identity(&self.path)? != self.identity {
+            return Err(error(ErrorCode::ExternalChange, Phase::Validation));
+        }
+        Ok(())
+    }
 }
 #[cfg(windows)]
 pub type SpawnCallback = Arc<dyn Fn(OwnedJob) -> Result<(), AppError> + Send + Sync>;
@@ -248,6 +279,10 @@ impl GitRunner {
             "GIT_REPLACE_REF_BASE",
         ] {
             command.env_remove(variable);
+        }
+        if let Some(index) = &options.trusted_index {
+            index.validate()?;
+            command.env("GIT_INDEX_FILE", crate::actions::path_text(&index.path)?);
         }
         if suppress_grafts {
             command.env(

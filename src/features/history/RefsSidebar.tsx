@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import type { ActionLaunch } from '../../stores/repositoryActions';
 import type { Head } from '../../contracts/models';
 import type { HistoryFilter, HistoryRef } from '../../contracts/history';
 import { applyHistoryFilterAction, deriveHistoryVisibility } from './visibility';
@@ -6,9 +7,10 @@ import type { HistoryFilterAction } from './visibility';
 import './history.css';
 
 export type RefsSidebarProps = { refs: readonly HistoryRef[]; head: Head; filter: HistoryFilter; onFilterChange: (filter: HistoryFilter) => void;
+  onAction?: (launch: ActionLaunch) => void;
   onSelectRef: (ref: HistoryRef) => void; loading?: boolean; error?: string | null };
 
-export function RefsSidebar({ refs, head, filter, onFilterChange, onSelectRef, loading = false, error }: RefsSidebarProps) {
+export function RefsSidebar({ refs, head, filter, onFilterChange, onSelectRef, onAction, loading = false, error }: RefsSidebarProps) {
   const visibility = deriveHistoryVisibility(refs, head, filter), current = visibility.filter;
   const hiddenNames = new Set(current.hiddenRefs), soloNames = new Set(current.soloRefs);
   const groups = useMemo(() => {
@@ -46,6 +48,7 @@ export function RefsSidebar({ refs, head, filter, onFilterChange, onSelectRef, l
               {isHead && <strong>HEAD · </strong>}{ref.displayName}
               {ref.symbolicTarget && <span className="history-sr-only"> symbolic reference to {ref.symbolicTarget}</span>}
               {!ref.commitOid && <span> (not a commit)</span>}</button>
+            {onAction && ref.kind !== 'stash' && !ref.symbolicTarget && <button type="button" aria-label={`Local actions for ${ref.name}`} onClick={() => onAction({ kind: ref.kind === 'local' ? 'branchSwitch' : ref.kind === 'tag' ? 'tagDelete' : 'branchCreate', refName: ref.name })}>Actions</button>}
             {ref.kind !== 'stash' && <><button type="button" aria-label={`${hidden ? 'Show' : 'Hide'} ${ref.name}`} aria-pressed={hidden} onClick={() => apply({ kind: hidden ? 'show' : 'hide', names: [ref.name] })}>{hidden ? 'Show' : 'Hide'}</button>
               <button type="button" aria-label={`Solo ${ref.name}`} aria-pressed={solo} onClick={() => apply({ kind: solo ? 'unsolo' : 'solo', names: [ref.name] })}>Solo</button></>}
           </div>;

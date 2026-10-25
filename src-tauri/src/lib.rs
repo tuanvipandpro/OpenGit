@@ -1,3 +1,4 @@
+pub mod actions;
 pub mod auth;
 pub mod backend;
 pub mod clone;
@@ -38,6 +39,47 @@ mod desktop {
     }
 
     #[tauri::command]
+    async fn get_repository_changes(
+        request: GetRepositoryChangesRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<RepositoryChanges> {
+        match backend(&app) {
+            Ok(s) => result(s.get_repository_changes(window.label(), request).await),
+            Err(e) => ApiResult::Failure(e),
+        }
+    }
+    #[tauri::command]
+    async fn resolve_change_targets(
+        request: ResolveChangeTargetsRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<ResolvedChangeTargets> {
+        match backend(&app) {
+            Ok(s) => result(s.resolve_change_targets(window.label(), request).await),
+            Err(e) => ApiResult::Failure(e),
+        }
+    }
+    #[tauri::command]
+    async fn get_change_diff(
+        request: GetChangeDiffRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<ChangeDiff> {
+        match backend(&app) {
+            Ok(s) => result(s.get_change_diff(window.label(), request).await),
+            Err(e) => ApiResult::Failure(e),
+        }
+    }
+    #[tauri::command]
+    fn get_change_action_outcome(
+        request: GetActionOutcomeRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<ChangeActionOperationResult> {
+        result(backend(&app).and_then(|s| s.get_change_action_outcome(window.label(), request)))
+    }
+    #[tauri::command]
     async fn get_environment(
         request: EmptyRequest,
         app: tauri::AppHandle,
@@ -58,6 +100,139 @@ mod desktop {
             version: None,
         };
         ApiResult::Success(value)
+    }
+    #[tauri::command]
+    async fn get_remote_actions(
+        request: GetRemoteActionsRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<RemoteActionCatalog> {
+        match backend(&app) {
+            Ok(s) => result(s.get_remote_actions(window.label(), request).await),
+            Err(e) => ApiResult::Failure(e),
+        }
+    }
+    #[tauri::command]
+    async fn get_remote_action_outcome(
+        request: GetActionOutcomeRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<RemoteActionOperationResult> {
+        result(backend(&app).and_then(|s| s.get_remote_action_outcome(window.label(), request)))
+    }
+    #[tauri::command]
+    async fn resolve_remote_target(
+        request: ResolveRemoteTargetRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<ResolvedRemoteTarget> {
+        match backend(&app) {
+            Ok(s) => result(s.resolve_remote_target(window.label(), request).await),
+            Err(e) => ApiResult::Failure(e),
+        }
+    }
+    #[tauri::command]
+    async fn get_ref_actions(
+        request: GetRefActionsRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<RefActionCatalog> {
+        match backend(&app) {
+            Ok(service) => result(service.get_ref_actions(window.label(), request).await),
+            Err(e) => ApiResult::Failure(e),
+        }
+    }
+    #[tauri::command]
+    async fn resolve_ref_action_target(
+        request: ResolveRefActionTargetRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<ResolvedRefActionTarget> {
+        match backend(&app) {
+            Ok(service) => result(
+                service
+                    .resolve_ref_action_target(window.label(), request)
+                    .await,
+            ),
+            Err(e) => ApiResult::Failure(e),
+        }
+    }
+    #[tauri::command]
+    async fn get_ref_action_outcome(
+        request: GetActionOutcomeRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<RefActionOperationResult> {
+        result(
+            backend(&app)
+                .and_then(|service| service.get_ref_action_outcome(window.label(), request)),
+        )
+    }
+    #[tauri::command]
+    async fn get_repository_actions(
+        request: GetRepositoryActionsRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<RepositoryActionCatalog> {
+        match backend(&app) {
+            Ok(service) => result(
+                service
+                    .get_repository_actions(window.label(), request)
+                    .await,
+            ),
+            Err(e) => ApiResult::Failure(e),
+        }
+    }
+    #[tauri::command]
+    async fn get_commit_containment(
+        request: GetCommitContainmentRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<CommitContainment> {
+        match backend(&app) {
+            Ok(service) => result(
+                service
+                    .get_commit_containment(window.label(), request)
+                    .await,
+            ),
+            Err(e) => ApiResult::Failure(e),
+        }
+    }
+    #[tauri::command]
+    async fn prepare_repository_action(
+        request: PrepareRepositoryActionRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<PreparedAction> {
+        match backend(&app) {
+            Ok(service) => result(
+                service
+                    .prepare_repository_action(window.label(), request)
+                    .await,
+            ),
+            Err(e) => ApiResult::Failure(e),
+        }
+    }
+    #[tauri::command]
+    async fn execute_repository_action(
+        request: ExecuteRepositoryActionRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<OperationSnapshot> {
+        result(
+            backend(&app)
+                .and_then(|service| service.execute_repository_action(window.label(), request)),
+        )
+    }
+    #[tauri::command]
+    async fn get_action_outcome(
+        request: GetActionOutcomeRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<ActionOperationResult> {
+        result(
+            backend(&app).and_then(|service| service.get_action_outcome(window.label(), request)),
+        )
     }
     #[tauri::command]
     async fn get_workspace(
@@ -455,8 +630,23 @@ mod desktop {
                 }
             })
             .invoke_handler(tauri::generate_handler![
+                get_repository_changes,
+                resolve_change_targets,
+                get_change_diff,
+                get_change_action_outcome,
+                get_remote_actions,
+                get_remote_action_outcome,
+                resolve_remote_target,
+                get_ref_actions,
+                resolve_ref_action_target,
+                get_ref_action_outcome,
                 get_environment,
                 get_workspace,
+                get_repository_actions,
+                get_commit_containment,
+                prepare_repository_action,
+                execute_repository_action,
+                get_action_outcome,
                 choose_repository,
                 inspect_repository,
                 open_history,

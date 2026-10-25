@@ -34,10 +34,14 @@ if __name__ == '__main__':
         # The production process cannot consume the test chooser queue. It
         # recovers its repository from the persisted, authoritative registry.
         with DesktopSession(ROOT, production, {**env, 'OPENGIT_E2E_DIALOGS_JSON': '[null]'}) as desktop:
+            wait_for(lambda: desktop.script('return typeof window.__TAURI_INTERNALS__?.invoke === "function"'),
+                     'production native bridge')
+            wait_for(lambda: workspace(desktop)['activeSelection'] == selection, 'production selection restored')
+            click_text(desktop, 'Overview')
             wait_for(lambda: body_contains(desktop, 'change-00.txt'), 'production status rendered')
             assert workspace(desktop)['activeSelection'] == selection
             environment = desktop.invoke('get_environment', {})
-            assert environment['ok'] and environment['value']['appVersion'] == '0.1.0'
+            assert environment['ok'] and environment['value']['appVersion'] == (ROOT / 'VERSION').read_text().strip()
             invalid = desktop.invoke('get_environment', {'unexpected': 'synthetic'})
             assert invalid.get('transportRejected') or invalid.get('ok') is False
             for width, height in ((1280, 820), (960, 640)):

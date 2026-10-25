@@ -25,6 +25,10 @@ pub struct Backend {
     #[cfg(windows)]
     pub clones: crate::clone::grants::CloneState,
     runner: Option<GitRunner>,
+    history: crate::history::History,
+    pub(crate) watches: Arc<crate::history::watch::Watches>,
+    #[cfg(test)]
+    pub(crate) watch_test: crate::history::watch::TestHooks,
     windows: Mutex<HashSet<String>>,
 }
 impl Backend {
@@ -49,6 +53,10 @@ impl Backend {
             clones: Default::default(),
             scheduler,
             runner,
+            history: Default::default(),
+            watches: Arc::new(Default::default()),
+            #[cfg(test)]
+            watch_test: Default::default(),
             windows: Mutex::new(HashSet::new()),
         })
     }
@@ -61,6 +69,7 @@ impl Backend {
             .lock()
             .map_err(|_| error(ErrorCode::Internal, Phase::Validation))?
             .insert(window.into());
+        self.history.sessions.open_window(window);
         self.registry.workspace()
     }
     fn window(&self, window: &str) -> Result<(), AppError> {
@@ -77,6 +86,8 @@ impl Backend {
         }
     }
     pub fn close_window(&self, window: &str) {
+        self.history.sessions.revoke_window(window, true);
+        self.watches.revoke_window(window, true);
         #[cfg(windows)]
         self.auth.close_window(window);
         #[cfg(windows)]
@@ -124,6 +135,9 @@ impl Backend {
             .lock()
             .map_err(|_| error(ErrorCode::Internal, Phase::Validation))?
             .insert(window.into());
+        self.history.sessions.revoke_window(window, false);
+        self.watches.revoke_window(window, false);
+        self.history.sessions.open_window(window);
         Ok(workspace)
     }
     pub fn select_repository(
@@ -133,7 +147,10 @@ impl Backend {
     ) -> Result<Workspace, AppError> {
         self.window(window)?;
         validation::request_size(&request)?;
-        self.registry.select(&request)
+        let result = self.registry.select(&request)?;
+        self.history.sessions.revoke_window(window, false);
+        self.watches.revoke_window(window, false);
+        Ok(result)
     }
     pub fn forget_repository(
         &self,
@@ -142,7 +159,10 @@ impl Backend {
     ) -> Result<Workspace, AppError> {
         self.window(window)?;
         validation::request_size(&request)?;
-        self.registry.forget(&request.repo_id)
+        let result = self.registry.forget(&request.repo_id)?;
+        self.history.sessions.revoke_repo(&request.repo_id);
+        self.watches.revoke_repo(&request.repo_id);
+        Ok(result)
     }
     pub fn get_operations(&self, window: &str) -> Result<OperationsSnapshot, AppError> {
         #[cfg(windows)]
@@ -153,6 +173,7 @@ impl Backend {
             .lock()
             .map_err(|_| error(ErrorCode::Internal, Phase::Validation))?
             .insert(window.into());
+        self.history.sessions.open_window(window);
         self.scheduler.snapshot()
     }
     pub fn cancel_operation(
@@ -357,6 +378,240 @@ impl Backend {
             }
         });
         Ok(operation)
+    }
+    pub async fn open_history(
+        &self,
+        window: &str,
+        request: OpenHistoryRequest,
+    ) -> Result<HistorySession, AppError> {
+        self.window(window)?;
+        validation::request_size(&request)?;
+        validation::counter(&request.scope.generation)?;
+        let location = self
+            .registry
+            .location(&request.scope.repo_id, request.scope.worktree_id.as_deref())?;
+        self.history
+            .open(window, self.git()?, location, request)
+            .await
+    }
+    pub fn subscribe_repository_changes(
+        &self,
+    ) -> tokio::sync::broadcast::Receiver<crate::history::watch::RoutedChange> {
+        self.watches.subscribe()
+    }
+    fn check_watch_registration(
+        connection: &rusqlite::Connection,
+        scope: &HistoryScope,
+        location: &crate::repositories::registry::RepositoryLocation,
+    ) -> Result<(), AppError> {
+        use crate::persistence::workspace::{db_error, encode};
+        use rusqlite::OptionalExtension;
+        let invalid = || error(ErrorCode::InvalidHandle, Phase::Validation);
+        // Registered identities and paths must still match the captured scope.
+        // Physical availability is deliberately left to the watcher: missing
+        // or inaccessible directories retain the reviewed fallback behavior.
+        let repository: Option<(Vec<u8>, Vec<u8>, bool)> = connection
+            .query_row(
+                "SELECT identity,common_path,bare FROM repositories WHERE id=?1",
+                [&scope.repo_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()
+            .map_err(|_| db_error())?;
+        if repository
+            != Some((
+                location.common_identity.clone(),
+                encode(&location.common),
+                location.bare,
+            ))
+        {
+            return Err(invalid());
+        }
+        match &scope.worktree_id {
+            Some(id) if !location.bare => {
+                let tree: Option<(Vec<u8>, Vec<u8>, Vec<u8>)> = connection
+                    .query_row(
+                        "SELECT identity,root,git_dir FROM worktrees WHERE id=?1 AND repo_id=?2",
+                        rusqlite::params![id, scope.repo_id],
+                        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                    )
+                    .optional()
+                    .map_err(|_| db_error())?;
+                let identity = location.root_identity.as_ref().ok_or_else(invalid)?;
+                if tree
+                    != Some((
+                        identity.clone(),
+                        encode(&location.root),
+                        encode(&location.git_dir),
+                    ))
+                {
+                    return Err(invalid());
+                }
+            }
+            None if location.bare => (),
+            _ => return Err(invalid()),
+        }
+        let active: (Option<String>, Option<String>) = connection
+            .query_row(
+                "SELECT active_repo,active_worktree FROM workspace",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|_| db_error())?;
+        if active != (Some(scope.repo_id.clone()), scope.worktree_id.clone()) {
+            return Err(invalid());
+        }
+        Ok(())
+    }
+    pub async fn watch_repository(
+        &self,
+        window: &str,
+        request: WatchRepositoryRequest,
+    ) -> Result<RepositoryWatch, AppError> {
+        self.window(window)?;
+        validation::request_size(&request)?;
+        validation::counter(&request.scope.generation)?;
+        let location = self
+            .registry
+            .location(&request.scope.repo_id, request.scope.worktree_id.as_deref())?;
+        let selection = self.registry.workspace()?.active_selection;
+        if selection.as_ref().is_none_or(|s| {
+            s.repo_id != request.scope.repo_id || s.worktree_id != request.scope.worktree_id
+        }) {
+            return Err(error(ErrorCode::InvalidHandle, Phase::Validation));
+        }
+        #[cfg(test)]
+        self.watch_test.pause(true).await;
+        let ticket = self
+            .history
+            .sessions
+            .begin_checked(window, &request.scope, || {
+                let connection = self.registry.database.lock()?;
+                Self::check_watch_registration(&connection, &request.scope, &location)
+            })?;
+        let (token, ready) = self.history.sessions.with_ticket(&ticket, || {
+            let connection = self.registry.database.lock()?;
+            Self::check_watch_registration(&connection, &request.scope, &location)?;
+            self.watches
+                .start(window, request.scope.clone(), location.clone())
+        })?;
+        #[cfg(test)]
+        self.watch_test.pause(false).await;
+        let result = match self.watches.finish(window, token.clone(), ready).await {
+            Ok(value) => self.history.sessions.with_ticket(&ticket, || {
+                let connection = self.registry.database.lock()?;
+                Self::check_watch_registration(&connection, &request.scope, &location)?;
+                Ok(value)
+            }),
+            Err(error) => Err(error),
+        };
+        if result.is_err() {
+            let _ = self.watches.unwatch(window, &token);
+        }
+        result
+    }
+    pub fn unwatch_repository(
+        &self,
+        window: &str,
+        request: UnwatchRepositoryRequest,
+    ) -> Result<(), AppError> {
+        self.window(window)?;
+        validation::request_size(&request)?;
+        self.watches.unwatch(window, &request.subscription_id)
+    }
+    pub async fn get_commit_details(
+        &self,
+        window: &str,
+        request: GetCommitDetailsRequest,
+    ) -> Result<CommitDetails, AppError> {
+        self.window(window)?;
+        validation::request_size(&request)?;
+        self.registry.location(
+            &request.context.scope.repo_id,
+            request.context.scope.worktree_id.as_deref(),
+        )?;
+        self.history.details(window, self.git()?, request).await
+    }
+    pub async fn get_commit_diff(
+        &self,
+        window: &str,
+        request: GetCommitDiffRequest,
+    ) -> Result<CommitDiff, AppError> {
+        self.window(window)?;
+        validation::request_size(&request)?;
+        self.registry.location(
+            &request.context.scope.repo_id,
+            request.context.scope.worktree_id.as_deref(),
+        )?;
+        self.history.diff(window, self.git()?, request).await
+    }
+    pub fn get_repository_view(
+        &self,
+        window: &str,
+        request: GetRepositoryViewRequest,
+    ) -> Result<RepositoryViewState, AppError> {
+        self.window(window)?;
+        validation::request_size(&request)?;
+        let location = self
+            .registry
+            .location(&request.scope.repo_id, request.scope.worktree_id.as_deref())?;
+        {
+            let connection = self.registry.database.lock()?;
+            crate::persistence::views::check_scope(&connection, &request.scope, &location)?;
+        }
+        let ticket = self.history.sessions.begin(window, &request.scope)?;
+        self.history.sessions.with_ticket(&ticket, || {
+            crate::persistence::views::get(&self.registry.database, &request.scope, &location)
+        })
+    }
+    pub fn save_repository_view(
+        &self,
+        window: &str,
+        request: SaveRepositoryViewRequest,
+    ) -> Result<RepositoryViewState, AppError> {
+        self.window(window)?;
+        validation::request_size(&request)?;
+        validation::counter(&request.expected_revision)?;
+        let location = self
+            .registry
+            .location(&request.scope.repo_id, request.scope.worktree_id.as_deref())?;
+        {
+            let connection = self.registry.database.lock()?;
+            crate::persistence::views::check_scope(&connection, &request.scope, &location)?;
+        }
+        crate::persistence::views::validate(&request.view)?;
+        let ticket = self.history.sessions.begin(window, &request.scope)?;
+        self.history.sessions.with_ticket(&ticket, || {
+            crate::persistence::views::save(&self.registry.database, &request, &location)
+        })
+    }
+    pub async fn load_history_page(
+        &self,
+        window: &str,
+        request: LoadHistoryPageRequest,
+    ) -> Result<HistoryPage, AppError> {
+        self.window(window)?;
+        validation::request_size(&request)?;
+        validation::counter(&request.context.scope.generation)?;
+        self.registry.location(
+            &request.context.scope.repo_id,
+            request.context.scope.worktree_id.as_deref(),
+        )?;
+        self.history.page(window, self.git()?, request).await
+    }
+    pub async fn search_history(
+        &self,
+        window: &str,
+        request: SearchHistoryRequest,
+    ) -> Result<HistorySearchPage, AppError> {
+        self.window(window)?;
+        validation::request_size(&request)?;
+        validation::counter(&request.context.scope.generation)?;
+        self.registry.location(
+            &request.context.scope.repo_id,
+            request.context.scope.worktree_id.as_deref(),
+        )?;
+        self.history.search(window, self.git()?, request).await
     }
     pub async fn inspect_repository(
         &self,

@@ -10,7 +10,9 @@ use std::{
     },
     time::Duration,
 };
-use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
+
+pub const INPUT_LIMIT_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Default)]
 pub struct Cancellation(Arc<AtomicBool>);
@@ -32,6 +34,11 @@ pub struct GitOutput {
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
     pub success: bool,
+    pub exit_code: Option<i32>,
+}
+struct OutputPolicy<'a> {
+    input: Option<&'a [u8]>,
+    suppress_grafts: bool,
 }
 #[derive(Clone, Default)]
 pub struct RunOptions {
@@ -99,7 +106,20 @@ impl GitRunner {
         cancel: &Cancellation,
         phase: Phase,
     ) -> Result<GitOutput, AppError> {
-        self.output_with(cwd, args, cancel, phase, RunOptions::default())
+        self.output_with(cwd, args, cancel, phase, RunOptions::default(), None)
+            .await
+    }
+    /// Trusted internal binary input, never a renderer-provided command/path.
+    /// Feed concurrently with draining both output pipes to avoid deadlock.
+    pub async fn output_with_input(
+        &self,
+        cwd: Option<&Path>,
+        args: &[OsString],
+        cancel: &Cancellation,
+        phase: Phase,
+        input: &[u8],
+    ) -> Result<GitOutput, AppError> {
+        self.output_with(cwd, args, cancel, phase, RunOptions::default(), Some(input))
             .await
     }
     pub async fn run_with(
@@ -111,7 +131,7 @@ impl GitRunner {
         options: RunOptions,
     ) -> Result<Vec<u8>, AppError> {
         let output = self
-            .output_with(cwd, args, cancel, phase.clone(), options)
+            .output_with(cwd, args, cancel, phase.clone(), options, None)
             .await?;
         if output.success {
             Ok(output.stdout)
@@ -126,10 +146,62 @@ impl GitRunner {
         cancel: &Cancellation,
         phase: Phase,
         options: RunOptions,
+        input: Option<&[u8]>,
     ) -> Result<GitOutput, AppError> {
+        self.output_internal(
+            cwd,
+            args,
+            cancel,
+            phase,
+            options,
+            OutputPolicy {
+                input,
+                suppress_grafts: false,
+            },
+        )
+        .await
+    }
+    pub(crate) async fn output_history(
+        &self,
+        cwd: Option<&Path>,
+        args: &[OsString],
+        cancel: &Cancellation,
+        phase: Phase,
+        options: RunOptions,
+        input: Option<&[u8]>,
+    ) -> Result<GitOutput, AppError> {
+        self.output_internal(
+            cwd,
+            args,
+            cancel,
+            phase,
+            options,
+            OutputPolicy {
+                input,
+                suppress_grafts: true,
+            },
+        )
+        .await
+    }
+    async fn output_internal(
+        &self,
+        cwd: Option<&Path>,
+        args: &[OsString],
+        cancel: &Cancellation,
+        phase: Phase,
+        options: RunOptions,
+        policy: OutputPolicy<'_>,
+    ) -> Result<GitOutput, AppError> {
+        let OutputPolicy {
+            input,
+            suppress_grafts,
+        } = policy;
         let lifetime_guard = options.lifetime_guard;
         if cancel.is_cancelled() {
             return Err(error(ErrorCode::Interrupted, phase));
+        }
+        if input.is_some_and(|bytes| bytes.len() > INPUT_LIMIT_BYTES) {
+            return Err(error(ErrorCode::InvalidRequest, phase));
         }
         if args.iter().any(|a| a.to_string_lossy().contains('\0'))
             || cwd.is_some_and(|p| !p.is_absolute())
@@ -139,7 +211,11 @@ impl GitRunner {
         let mut command = tokio::process::Command::new(&self.executable);
         command
             .args(args)
-            .stdin(Stdio::null())
+            .stdin(if input.is_some() {
+                Stdio::piped()
+            } else {
+                Stdio::null()
+            })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)
@@ -167,8 +243,17 @@ impl GitRunner {
             "GIT_OBJECT_DIRECTORY",
             "GIT_ALTERNATE_OBJECT_DIRECTORIES",
             "GIT_NAMESPACE",
+            "GIT_GRAFT_FILE",
+            "GIT_SHALLOW_FILE",
+            "GIT_REPLACE_REF_BASE",
         ] {
             command.env_remove(variable);
+        }
+        if suppress_grafts {
+            command.env(
+                "GIT_GRAFT_FILE",
+                if cfg!(windows) { "NUL" } else { "/dev/null" },
+            );
         }
         #[cfg(windows)]
         command.creation_flags(0x00000004 | 0x08000000); // suspended, no console
@@ -178,21 +263,33 @@ impl GitRunner {
         #[cfg(windows)]
         let job = match owned_job::attach(&child) {
             Ok(job) => job,
-            Err(()) => {
+            Err(failure) => {
                 let _ = child.kill().await;
-                return Err(error(ErrorCode::Internal, phase));
+                return Err(match failure {
+                    owned_job::AttachError::Capacity => {
+                        error(ErrorCode::Interrupted, Phase::Recovery)
+                    }
+                    owned_job::AttachError::Setup => error(ErrorCode::Internal, phase),
+                });
             }
         };
         #[cfg(windows)]
-        let _job_guard = owned_job::TerminationGuard(job.clone());
+        let mut job_guard = owned_job::TerminationGuard::new(job.clone(), lifetime_guard);
         #[cfg(windows)]
         {
-            if let Some(callback) = options.before_resume {
-                callback(job.clone())?;
-            }
-            if owned_job::resume(&child).is_err() {
-                let _ = child.kill().await;
-                return Err(error(ErrorCode::Internal, phase));
+            let resumed = options
+                .before_resume
+                .map_or(Ok(()), |callback| callback(job.clone()))
+                .and_then(|()| {
+                    owned_job::resume(&child)
+                        .map_err(|()| error(ErrorCode::Internal, phase.clone()))
+                });
+            if let Err(failure) = resumed {
+                if job.stop_and_wait().await.is_err() {
+                    return Err(error(ErrorCode::Interrupted, Phase::Recovery));
+                }
+                job_guard.confirmed();
+                return Err(failure);
             }
         }
         let stdout = child
@@ -204,8 +301,9 @@ impl GitRunner {
             .take()
             .ok_or_else(|| error(ErrorCode::Internal, phase.clone()))?;
         let limit = self.output_limit;
+        let mut stdin = child.stdin.take();
         let run = async {
-            let (status, out, err) = tokio::try_join!(
+            let (status, out, err, ()) = tokio::try_join!(
                 async {
                     let status = child.wait().await.map_err(|_| ErrorCode::Io)?;
                     // A detached descendant may retain inherited pipe handles.
@@ -215,12 +313,25 @@ impl GitRunner {
                     Ok(status)
                 },
                 bounded(stdout, limit),
-                bounded(stderr, limit)
+                bounded(stderr, limit),
+                async move {
+                    if let Some(bytes) = input {
+                        let mut writer = stdin.take().ok_or(ErrorCode::Io)?;
+                        writer.write_all(bytes).await.map_err(|_| ErrorCode::Io)?;
+                        // Tokio Windows buffers a write on a blocking worker;
+                        // shutdown alone is immediately ready. Observe the
+                        // actual OS write result before reporting stdin sent.
+                        writer.flush().await.map_err(|_| ErrorCode::Io)?;
+                        writer.shutdown().await.map_err(|_| ErrorCode::Io)?;
+                    }
+                    Ok(())
+                }
             )?;
             Ok::<_, ErrorCode>(GitOutput {
                 stdout: out,
                 stderr: err,
                 success: status.success(),
+                exit_code: status.code(),
             })
         };
         let cancellation = async {
@@ -245,12 +356,11 @@ impl GitRunner {
             // Native clone fails closed after this error (at most two in
             // flight). Retain only pure file leases until process exit rather
             // than release path pins while an owned process may still run.
-            if let Some(guard) = lifetime_guard {
-                std::mem::forget(guard);
-            }
             // No caller may mutate/clean staging on an unconfirmed tree stop.
             return Err(error(ErrorCode::Interrupted, Phase::Recovery));
         }
+        #[cfg(windows)]
+        job_guard.confirmed();
         result.map_err(|code| error(code, phase))
     }
 }
@@ -276,133 +386,4 @@ pub fn argv(args: &[&str]) -> Vec<OsString> {
 }
 
 #[cfg(windows)]
-mod owned_job {
-    use std::mem::{size_of, zeroed};
-    use windows_sys::Win32::{
-        Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE},
-        System::{
-            Diagnostics::ToolHelp::*,
-            JobObjects::*,
-            Threading::{
-                OpenProcess, OpenThread, ResumeThread, PROCESS_QUERY_LIMITED_INFORMATION,
-                THREAD_SUSPEND_RESUME,
-            },
-        },
-    };
-    struct Job(HANDLE);
-    // The handle is owned and only closed once; the OS synchronizes job operations.
-    unsafe impl Send for Job {}
-    unsafe impl Sync for Job {}
-    #[derive(Clone)]
-    pub struct OwnedJob(std::sync::Arc<Job>);
-    impl OwnedJob {
-        pub fn contains(&self, pid: u32) -> bool {
-            unsafe {
-                let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
-                if process.is_null() {
-                    return false;
-                }
-                let mut member = 0;
-                let valid = IsProcessInJob(process, self.0 .0, &mut member) != 0 && member != 0;
-                CloseHandle(process);
-                valid
-            }
-        }
-        pub fn terminate(&self) {
-            unsafe {
-                TerminateJobObject(self.0 .0, 1);
-            }
-        }
-        pub(super) async fn stop_and_wait(&self) -> Result<(), ()> {
-            self.terminate();
-            tokio::time::timeout(std::time::Duration::from_secs(5), async {
-                loop {
-                    let mut accounting: JOBOBJECT_BASIC_ACCOUNTING_INFORMATION =
-                        unsafe { zeroed() };
-                    if unsafe {
-                        QueryInformationJobObject(
-                            self.0 .0,
-                            JobObjectBasicAccountingInformation,
-                            &mut accounting as *mut _ as _,
-                            size_of::<JOBOBJECT_BASIC_ACCOUNTING_INFORMATION>() as u32,
-                            std::ptr::null_mut(),
-                        )
-                    } == 0
-                    {
-                        return Err(());
-                    }
-                    if accounting.ActiveProcesses == 0 {
-                        return Ok(());
-                    }
-                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                }
-            })
-            .await
-            .map_err(|_| ())?
-        }
-    }
-    pub struct TerminationGuard(pub OwnedJob);
-    impl Drop for TerminationGuard {
-        fn drop(&mut self) {
-            self.0.terminate();
-        }
-    }
-    impl Drop for Job {
-        fn drop(&mut self) {
-            unsafe {
-                CloseHandle(self.0);
-            }
-        }
-    }
-    pub fn attach(child: &tokio::process::Child) -> Result<OwnedJob, ()> {
-        unsafe {
-            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
-            if job.is_null() {
-                return Err(());
-            }
-            let owned = Job(job);
-            let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = zeroed();
-            limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-            if SetInformationJobObject(
-                job,
-                JobObjectExtendedLimitInformation,
-                &limits as *const _ as _,
-                size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-            ) == 0
-                || AssignProcessToJobObject(job, child.raw_handle().ok_or(())? as HANDLE) == 0
-            {
-                return Err(());
-            }
-            Ok(OwnedJob(std::sync::Arc::new(owned)))
-        }
-    }
-    pub fn resume(child: &tokio::process::Child) -> Result<(), ()> {
-        unsafe {
-            let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
-            if snapshot == INVALID_HANDLE_VALUE {
-                return Err(());
-            }
-            let mut entry: THREADENTRY32 = zeroed();
-            entry.dwSize = size_of::<THREADENTRY32>() as u32;
-            let mut next = Thread32First(snapshot, &mut entry);
-            let mut resumed = false;
-            while next != 0 {
-                if Some(entry.th32OwnerProcessID) == child.id() {
-                    let thread = OpenThread(THREAD_SUSPEND_RESUME, 0, entry.th32ThreadID);
-                    if !thread.is_null() {
-                        resumed = ResumeThread(thread) != u32::MAX;
-                        CloseHandle(thread);
-                    }
-                    break;
-                }
-                next = Thread32Next(snapshot, &mut entry);
-            }
-            CloseHandle(snapshot);
-            if resumed {
-                Ok(())
-            } else {
-                Err(())
-            }
-        }
-    }
-}
+mod owned_job;

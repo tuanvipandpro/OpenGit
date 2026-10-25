@@ -2,7 +2,7 @@
 
 Desktop Git client ưu tiên cây commit trực quan, quản lý nhiều branch và Hide/Solo theo repository. Trải nghiệm lấy cảm hứng từ GitKraken, với thiết kế và tài sản đồ họa riêng.
 
-**Trạng thái: ứng viên 0.1.0 đã triển khai, chưa phát hành.** Có workspace nhiều repo, mở/recents, trạng thái file/branch/identity, clone local/public/private HTTPS/SSH, auth, tasks, hủy và phục hồi sau restart. Frontend **52 tests** và backend **64 tests** PASS; native clone/auth/failure/workspace và bản production đã chạy thành công trên Windows. Reviewer độc lập đã đóng mọi finding code và duyệt kiểm chứng tích hợp local. GCM/OAuth/SSO và ma trận provider doanh nghiệp bên ngoài chưa được kiểm chứng, nên chưa đóng toàn bộ acceptance. Xem [kết quả](docs/testing/0.1.0-results.md) và [release gate](docs/testing/0.1.0-release-gate.md). Graph, diff và Hide/Solo thuộc 0.2.0, chưa có trong bản này.
+**Trạng thái: implementation candidate 0.2.0 đã được kiểm chứng trên Windows.** Có graph/history, search toàn lịch sử, Hide/Solo nhiều branch, diff và trạng thái theo repo; watcher phối hợp fallback 30 giây. Frontend226 và Rust core138 tests PASS. UX mới đưa thao tác branch/tag vào graph và danh sách References mở theo nhu cầu; tiến độ kiểm chứng ở [task006](docs/tasks/006-graph-actions-ux.md). Evidence nền tảng/native nằm tại [0.2.0 acceptance](docs/testing/0.2.0-acceptance.md). Chưa tạo installer hoặc phát hành; GCM/OAuth/SSO bên ngoài vẫn chưa được chứng minh. Checkpoint0.1.0 là `dded840`.
 
 ## Phạm vi sản phẩm
 
@@ -24,23 +24,27 @@ Desktop Git client ưu tiên cây commit trực quan, quản lý nhiều branch 
 | Backend local | Rust, Tokio, typed IPC |
 | Git | Git CLI cài trên máy; gọi bằng argument arrays |
 | Xác thực | Git credential helpers/GCM cho HTTPS; OpenSSH và SSH agent cho SSH |
-| Graph (dự kiến v0.2.0) | Layout riêng, Canvas 2D và danh sách commit dùng TanStack Virtual |
-| Diff (dự kiến v0.2.0 trở đi) | Monaco Editor tải khi cần; conflict workflow được xây riêng |
-| Dữ liệu app | SQLite cho workspace, registry và journal; bộ lọc/cache mở rộng ở các phiên bản sau |
+| Graph | Layout riêng, Canvas 2D và danh sách commit dùng TanStack Virtual |
+| Diff | Monaco Editor chỉ đọc, tải khi cần với worker cục bộ; conflict workflow ở phiên bản sau |
+| Dữ liệu app | SQLite cho workspace, registry, journal và trạng thái hiển thị theo repo |
 | Kiểm thử hiện có | Rust tests trên repo tạm, Vitest; native Tauri/WebView2 qua tauri-driver và EdgeDriver |
 
 Git là nguồn dữ liệu chính cho lịch sử và trạng thái thao tác. SQLite không thay thế Git. Không lưu credentials trong database/log của app. Dependency trực tiếp được pin exact trong manifests; dependency bắc cầu được khóa trong pnpm-lock.yaml và src-tauri/Cargo.lock.
 
 ## Phiên bản hiện tại
 
-`VERSION` hiện là `0.1.0`: ứng viên triển khai nền tảng đang được kiểm chứng, chưa phải tuyên bố đã phát hành. Quy tắc đánh version: [docs/versioning.md](docs/versioning.md).
+`VERSION` hiện là `0.2.0`. Implementation candidate và bản phát hành là hai trạng thái riêng; xem evidence bên trên và [quy tắc đánh version](docs/versioning.md).
+
+Mở repo để vào History; chọn commit rồi chọn file để xem diff. Với merge commit, chọn parent cần so sánh. Bấm hoặc chuột phải nhãn branch/tag trên graph để View commit, Hide/Show hoặc Add/Remove from Solo. Solo có thể gồm nhiều branch. Nút References mở danh sách đầy đủ, gồm nhánh bị ẩn/chưa xuất hiện trong graph và thao tác theo nhóm; không có sidebar cố định hay slider Sidebar width. Search tìm cả commit ngoài bộ lọc mà không đổi bộ lọc. Layout, lựa chọn và vị trí cuộn được nhớ theo repo; linked worktrees dùng chung preferences. Overview hiển thị trạng thái working tree. Tạo/chuyển branch và cherry-pick vẫn thuộc các phiên bản sau.
+
+Refresh tự động khi có notification, focus hoặc sau thao tác liên quan; fallback30 giây chỉ chạy khi cửa sổ hiện. Background refresh giữ nội dung; thao tác thủ công hoặc refresh chậm mới có feedback. Giới hạn history100.000 commit/session và các trường hợp không hỗ trợ được trả lỗi rõ ràng; xem [history contract](docs/architecture/history.md).
 
 ## Roadmap
 
 | Version | Phạm vi | Trạng thái |
 | --- | --- | --- |
 | v0.1.0 | Workspace, mở/clone repo private, auth, task/error panel | Implementation candidate · under acceptance |
-| v0.2.0 | Graph, sidebar, commit/diff, search, Hide/Solo, persistence | Planned |
+| v0.2.0 | Graph, sidebar, commit/diff, search, Hide/Solo, persistence; quiet refresh/watchers | Implementation candidate · native verified; gate status in evidence |
 | v0.3.0 | Fetch, branch/tag, stage/commit, stash, pull/push | Planned |
 | v0.4.0 | Merge, cherry-pick, rebase, conflict và recovery | Planned |
 | v0.5.0 | Cherry-pick giữa repository trong workspace | Planned |

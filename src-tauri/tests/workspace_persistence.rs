@@ -202,9 +202,11 @@ async fn schema_zero_one_two_migrations_preserve_ids_and_failed_upgrade_rolls_ba
     let version: i64 = connection
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 2);
+    assert_eq!(version, 3);
     connection
-        .execute_batch("DROP TABLE clone_intents; PRAGMA user_version=1;")
+        .execute_batch(
+            "DROP TABLE repository_views; DROP TABLE clone_intents; PRAGMA user_version=1;",
+        )
         .unwrap();
     drop(connection);
     let registry = Registry {

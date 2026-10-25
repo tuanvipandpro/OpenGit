@@ -1,6 +1,6 @@
 # Kiến trúc dự kiến của OpenGit
 
-Ngày lập: 2026-10-24. Đây là quyết định thiết kế để triển khai, chưa phải mô tả ứng dụng đã chạy. Phạm vi sản phẩm do [roadmap](roadmap.md) quyết định; thứ tự triển khai nằm trong [kế hoạch tổng thể](plans/implementation-plan.md) và [kế hoạch 0.1.0](plans/0.1.0.md).
+Ngày lập: 2026-10-24. Đây là thiết kế ban đầu, không phải bản liệt kê source hiện tại. Chi tiết history0.2.0 đã triển khai nằm tại [history contract](architecture/history.md), kết quả kiểm chứng tại [evidence](testing/0.2.0-acceptance.md). Phạm vi sản phẩm do [roadmap](roadmap.md) quyết định; thứ tự triển khai nằm trong [kế hoạch tổng thể](plans/implementation-plan.md) và các packet theo version.
 
 ## Quyết định và ranh giới
 

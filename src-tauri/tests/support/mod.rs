@@ -1,4 +1,5 @@
 pub mod faults;
+pub mod history;
 pub mod repos;
 
 use opengit_lib::repositories::discovery::identity;

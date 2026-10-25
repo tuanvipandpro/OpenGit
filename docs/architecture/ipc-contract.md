@@ -1,5 +1,7 @@
 # IPC foundation contract 0.1.0 — frozen v1
 
+Target 0.2.0 adds the scoped history/view/watch DTOs in [history contract](history.md) without changing foundation contractVersion `1` or the twelve commands below. S1 types/fixtures do not imply those new handlers are registered yet.
+
 OG-010-01, 2026-10-24; phạm vi R1/R6, F2–F4. Owner 02 hiện thực cùng schema trong Rust/TypeScript; thay đổi cần orchestrator điều phối. JSON UTF-8, camelCase, enum phân biệt hoa thường. Mọi field bên dưới bắt buộc; `null` biểu thị không có. Không nhận unknown fields trong request. Tauri gọi command bằng `{ request: <args> }`, kể cả `{ request: {} }`; trả `ApiResult<T>`. Không có shell/fs/argv API.
 
 ```ts

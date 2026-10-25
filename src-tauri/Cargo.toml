@@ -1,6 +1,6 @@
 [package]
 name = "opengit"
-version = "0.1.0"
+version = "0.2.0"
 description = "OpenGit desktop client"
 edition = "2021"
 rust-version = "1.99.1"
@@ -33,6 +33,7 @@ uuid = { version = "=1.29.0", features = ["v4", "serde"] }
 thiserror = "=2.0.21"
 zeroize = "=1.9.1"
 url = "=2.5.8"
+notify = "=8.2.0"
 chrono = { version = "=0.4.45", features = ["clock", "std"] }
 
 [target.'cfg(windows)'.dependencies]

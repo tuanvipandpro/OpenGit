@@ -142,6 +142,7 @@ it('reloads the real workspace after a newly observed clone succeeds', async () 
   const store = createWorkspaceStore(api), tasks = createOperationsStore(api, async () => () => {});
   render(<App store={store} tasks={tasks} />); await screen.findByRole('button', { name: 'Open a repository' });
   cloned = true; act(() => tasks.setState({ snapshot: { streamId: 'stream', sequence: '2', operations: [{ ...operation, state: 'Succeeded', canCancel: false }] } }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Overview' }));
   await waitFor(() => expect(screen.getByRole('heading', { name: 'Fixture' })).toBeInTheDocument());
   expect(screen.getByRole('heading', { name: 'main' })).toBeInTheDocument();
 });

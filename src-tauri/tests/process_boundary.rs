@@ -185,15 +185,15 @@ async fn real_git_success_literal_arguments_and_safe_errors() {
         b"repository executable must not be searched",
     )
     .unwrap();
-    assert!(runner
+    runner
         .run(
             Some(folder.path()),
             &argv(&["--version"]),
             &Cancellation::default(),
-            Phase::Discovery
+            Phase::Discovery,
         )
         .await
-        .is_ok());
+        .unwrap();
     assert!(GitRunner::trusted(folder.path().join("missing.exe")).is_err());
     let args = vec![
         "init".into(),
@@ -330,10 +330,32 @@ async fn owned_descendant_timeout_and_cancel_leave_unrelated_process_alive() {
 #[cfg(windows)]
 #[tokio::test]
 async fn successful_parent_exit_waits_for_detached_owned_tree_but_preserves_bystander() {
+    use std::os::windows::fs::OpenOptionsExt;
+    use windows_sys::Win32::{
+        Foundation::{CloseHandle, WAIT_OBJECT_0},
+        System::Threading::{OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE},
+    };
+    struct Held(windows_sys::Win32::Foundation::HANDLE);
+    impl Drop for Held {
+        fn drop(&mut self) {
+            unsafe {
+                CloseHandle(self.0);
+            }
+        }
+    }
     let fixture = tempfile::tempdir().unwrap();
     let source = fixture.path().join("detached.rs");
     let executable = fixture.path().join("detached fixture.exe");
-    std::fs::write(&source, r#"use std::{process::{Command,Stdio},time::Duration};fn main(){let root=std::env::current_exe().unwrap().parent().unwrap().to_owned();let mode=std::env::args().nth(1).unwrap();if mode=="bystander"{std::thread::sleep(Duration::from_secs(30));return;}if mode=="child"{std::fs::write(root.join("owned.pid"),std::process::id().to_string()).unwrap();std::thread::sleep(Duration::from_secs(2));std::fs::write(root.join("late-write"),b"unexpected").unwrap();return;}Command::new(std::env::current_exe().unwrap()).arg("child").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().unwrap();while !root.join("owned.pid").exists(){std::thread::sleep(Duration::from_millis(5));}}"#).unwrap();
+    std::fs::write(&source, r#"use std::{process::{Command,Stdio},time::Duration,os::windows::fs::OpenOptionsExt};
+fn wait(path:&std::path::Path){while !path.exists(){std::thread::sleep(Duration::from_millis(1));}}
+fn spawn(mode:&str){Command::new(std::env::current_exe().unwrap()).arg(mode).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().unwrap();}
+fn main(){let root=std::env::current_exe().unwrap().parent().unwrap().to_owned();let mode=std::env::args().nth(1).unwrap();
+if mode=="bystander"{std::thread::sleep(Duration::from_secs(30));return;}
+if mode=="parent"{spawn("child");wait(&root.join("release-parent"));return;}
+let _lease=std::fs::OpenOptions::new().create(true).write(true).truncate(true).share_mode(0).open(root.join(format!("{mode}.lock"))).unwrap();
+std::fs::write(root.join(format!("{mode}.pid")),std::process::id().to_string()).unwrap();
+if mode=="child"{wait(&root.join("spawn-grandchild"));spawn("grandchild");}
+std::thread::sleep(Duration::from_secs(2));std::fs::write(root.join(format!("{mode}.late-write")),b"unexpected").unwrap();}"#).unwrap();
     let rustc = std::env::split_paths(&std::env::var_os("PATH").unwrap())
         .filter(|p| p.is_absolute())
         .map(|p| p.join("rustc.exe"))
@@ -354,37 +376,65 @@ async fn successful_parent_exit_waits_for_detached_owned_tree_but_preserves_byst
         .spawn()
         .unwrap();
     let runner = GitRunner::trusted(executable).unwrap();
-    runner
-        .run(
-            None,
-            &argv(&["parent"]),
-            &Cancellation::default(),
-            Phase::Transfer,
-        )
+    let run = tokio::spawn(async move {
+        runner
+            .run(
+                None,
+                &argv(&["parent"]),
+                &Cancellation::default(),
+                Phase::Transfer,
+            )
+            .await
+    });
+    let mut handles = Vec::new();
+    for name in ["child", "grandchild"] {
+        let pid_file = fixture.path().join(format!("{name}.pid"));
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while !pid_file.is_file() {
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        })
         .await
         .unwrap();
-    let pid: u32 = std::fs::read_to_string(fixture.path().join("owned.pid"))
-        .unwrap()
-        .parse()
-        .unwrap();
-    use windows_sys::Win32::{
-        Foundation::{CloseHandle, WAIT_OBJECT_0},
-        System::Threading::{OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE},
-    };
-    let handle = unsafe { OpenProcess(PROCESS_SYNCHRONIZE, 0, pid) };
-    if !handle.is_null() {
-        assert_eq!(
-            unsafe { WaitForSingleObject(handle, 0) },
-            WAIT_OBJECT_0,
-            "runner returned before owned descendant stopped"
+        let pid: u32 = std::fs::read_to_string(pid_file).unwrap().parse().unwrap();
+        let handle = Held(unsafe { OpenProcess(PROCESS_SYNCHRONIZE, 0, pid) });
+        assert!(
+            !handle.0.is_null(),
+            "original descendant handle must be opened before termination"
         );
-        unsafe {
-            CloseHandle(handle);
+        assert!(std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .share_mode(0)
+            .open(fixture.path().join(format!("{name}.lock")))
+            .is_err());
+        handles.push(handle);
+        if name == "child" {
+            std::fs::write(fixture.path().join("spawn-grandchild"), b"go").unwrap();
         }
     }
-    assert!(!fixture.path().join("late-write").exists());
+    std::fs::write(fixture.path().join("release-parent"), b"go").unwrap();
+    run.await.unwrap().unwrap();
+    // No grace sleep/reopen-by-PID: the original handles and exclusive file
+    // access must already be ready on the runner's return boundary.
+    for (name, handle) in ["child", "grandchild"].into_iter().zip(&handles) {
+        assert_eq!(
+            unsafe { WaitForSingleObject(handle.0, 0) },
+            WAIT_OBJECT_0,
+            "runner returned before {name} signaled"
+        );
+        std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .share_mode(0)
+            .open(fixture.path().join(format!("{name}.lock")))
+            .unwrap();
+        assert!(!fixture.path().join(format!("{name}.late-write")).exists());
+    }
+    assert!(bystander.try_wait().unwrap().is_none());
     tokio::time::sleep(Duration::from_millis(2200)).await;
-    assert!(!fixture.path().join("late-write").exists());
+    assert!(!fixture.path().join("child.late-write").exists());
+    assert!(!fixture.path().join("grandchild.late-write").exists());
     assert!(bystander.try_wait().unwrap().is_none());
     bystander.kill().await.unwrap();
 }

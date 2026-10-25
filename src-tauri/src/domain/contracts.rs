@@ -1,3 +1,5 @@
+// Additive v0.2 history DTOs retain the foundation import surface.
+pub use super::history::*;
 use serde::{Deserialize, Serialize};
 pub type Id = String;
 pub type Counter = String;

@@ -1,6 +1,7 @@
 import type { CloneSource, Id, Counter, Environment, Workspace, RepositorySnapshot, LocalCloneSource, CloneDestination, OperationSnapshot, OperationsSnapshot } from './models';
 export type EmptyRequest = Record<string, never>;
-export interface CommandMap {
+import type { HistoryCommandMap } from './history';
+export interface CommandMap extends HistoryCommandMap {
   get_environment: { request: EmptyRequest; value: Environment };
   get_workspace: { request: EmptyRequest; value: Workspace };
   choose_repository: { request: EmptyRequest; value: Workspace | null };

@@ -1,0 +1,694 @@
+import { expect, it, vi } from 'vitest';
+import { invoke } from '@tauri-apps/api/core';
+import { call } from './client';
+import type { ApiResult, CommandMap, RepositoryChangedEvent, CommitDiff, DiffBase, CommitFileKind, RepositoryWatch, RepositoryChangeReason, ParentBoundary } from './index';
+import fixture from '../../fixtures/contracts/history-wire.json';
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
+type Sample = { [C in keyof CommandMap]: { command:C; request:CommandMap[C]['request']; result:ApiResult<CommandMap[C]['value']> } }[keyof CommandMap];
+const typed = {
+  "commands": [
+    {
+      "command": "open_history",
+      "request": {
+        "scope": {
+          "repoId": "repo-fixture",
+          "worktreeId": "worktree-fixture",
+          "generation": "9007199254740994"
+        },
+        "filter": {
+          "hiddenRefs": [
+            "refs/heads/hidden"
+          ],
+          "soloRefs": [
+            "refs/heads/main",
+            "refs/remotes/origin/topic"
+          ]
+        },
+        "pageSize": null
+      },
+      "result": {
+        "ok": true,
+        "value": {
+          "context": {
+            "scope": {
+              "repoId": "repo-fixture",
+              "worktreeId": "worktree-fixture",
+              "generation": "9007199254740994"
+            },
+            "snapshotId": "snapshot-fixture"
+          },
+          "sessionId": "session-fixture",
+          "head": {
+            "kind": "branch",
+            "branch": "main",
+            "oid": "commit-fixture"
+          },
+          "refs": [
+            {
+              "name": "refs/heads/main",
+              "displayName": "main",
+              "kind": "local",
+              "oid": "object-0",
+              "commitOid": "commit-0",
+              "symbolicTarget": null,
+              "hidden": false
+            },
+            {
+              "name": "refs/remotes/origin/topic",
+              "displayName": "origin/topic",
+              "kind": "remote",
+              "oid": "object-1",
+              "commitOid": "commit-1",
+              "symbolicTarget": null,
+              "hidden": false
+            },
+            {
+              "name": "refs/tags/v1",
+              "displayName": "v1",
+              "kind": "tag",
+              "oid": "object-2",
+              "commitOid": null,
+              "symbolicTarget": null,
+              "hidden": false
+            },
+            {
+              "name": "refs/stash",
+              "displayName": "stash",
+              "kind": "stash",
+              "oid": "object-3",
+              "commitOid": "commit-3",
+              "symbolicTarget": null,
+              "hidden": false
+            }
+          ],
+          "roots": [
+            "commit-fixture",
+            "commit-other"
+          ],
+          "page": {
+            "context": {
+              "scope": {
+                "repoId": "repo-fixture",
+                "worktreeId": "worktree-fixture",
+                "generation": "9007199254740994"
+              },
+              "snapshotId": "snapshot-fixture"
+            },
+            "sessionId": "session-fixture",
+            "commits": [
+              {
+                "handle": "commit-handle-fixture",
+                "oid": "commit-fixture",
+                "parents": [
+                  {
+                    "oid": "parent-0",
+                    "boundary": "loaded"
+                  },
+                  {
+                    "oid": "parent-1",
+                    "boundary": "offPage"
+                  },
+                  {
+                    "oid": "parent-2",
+                    "boundary": "outsideView"
+                  },
+                  {
+                    "oid": "parent-3",
+                    "boundary": "shallow"
+                  },
+                  {
+                    "oid": "parent-4",
+                    "boundary": "missing"
+                  }
+                ],
+                "authorName": "Fixture",
+                "authorEmail": "fixture@example.invalid",
+                "authoredAt": "2026-10-24T00:00:00Z",
+                "committedAt": "2026-10-24T00:00:00Z",
+                "subject": "Merge fixture",
+                "decorations": [
+                  "refs/heads/main"
+                ]
+              }
+            ],
+            "nextCursor": "page-cursor-fixture"
+          }
+        }
+      }
+    },
+    {
+      "command": "load_history_page",
+      "request": {
+        "context": {
+          "scope": {
+            "repoId": "repo-fixture",
+            "worktreeId": "worktree-fixture",
+            "generation": "9007199254740994"
+          },
+          "snapshotId": "snapshot-fixture"
+        },
+        "sessionId": "session-fixture",
+        "cursor": "page-cursor-fixture",
+        "pageSize": 2
+      },
+      "result": {
+        "ok": true,
+        "value": {
+          "context": {
+            "scope": {
+              "repoId": "repo-fixture",
+              "worktreeId": "worktree-fixture",
+              "generation": "9007199254740994"
+            },
+            "snapshotId": "snapshot-fixture"
+          },
+          "sessionId": "session-fixture",
+          "commits": [
+            {
+              "handle": "commit-handle-fixture",
+              "oid": "commit-fixture",
+              "parents": [
+                {
+                  "oid": "parent-0",
+                  "boundary": "loaded"
+                },
+                {
+                  "oid": "parent-1",
+                  "boundary": "offPage"
+                },
+                {
+                  "oid": "parent-2",
+                  "boundary": "outsideView"
+                },
+                {
+                  "oid": "parent-3",
+                  "boundary": "shallow"
+                },
+                {
+                  "oid": "parent-4",
+                  "boundary": "missing"
+                }
+              ],
+              "authorName": "Fixture",
+              "authorEmail": "fixture@example.invalid",
+              "authoredAt": "2026-10-24T00:00:00Z",
+              "committedAt": "2026-10-24T00:00:00Z",
+              "subject": "Merge fixture",
+              "decorations": [
+                "refs/heads/main"
+              ]
+            }
+          ],
+          "nextCursor": null
+        }
+      }
+    },
+    {
+      "command": "search_history",
+      "request": {
+        "context": {
+          "scope": {
+            "repoId": "repo-fixture",
+            "worktreeId": "worktree-fixture",
+            "generation": "9007199254740994"
+          },
+          "snapshotId": "snapshot-fixture"
+        },
+        "sessionId": "session-fixture",
+        "query": "Fixture",
+        "cursor": null,
+        "pageSize": 100
+      },
+      "result": {
+        "ok": true,
+        "value": {
+          "context": {
+            "scope": {
+              "repoId": "repo-fixture",
+              "worktreeId": "worktree-fixture",
+              "generation": "9007199254740994"
+            },
+            "snapshotId": "snapshot-fixture"
+          },
+          "sessionId": "session-fixture",
+          "query": "Fixture",
+          "commits": [
+            {
+              "commit": {
+                "handle": "commit-handle-fixture",
+                "oid": "commit-fixture",
+                "parents": [
+                  {
+                    "oid": "parent-0",
+                    "boundary": "loaded"
+                  },
+                  {
+                    "oid": "parent-1",
+                    "boundary": "offPage"
+                  },
+                  {
+                    "oid": "parent-2",
+                    "boundary": "outsideView"
+                  },
+                  {
+                    "oid": "parent-3",
+                    "boundary": "shallow"
+                  },
+                  {
+                    "oid": "parent-4",
+                    "boundary": "missing"
+                  }
+                ],
+                "authorName": "Fixture",
+                "authorEmail": "fixture@example.invalid",
+                "authoredAt": "2026-10-24T00:00:00Z",
+                "committedAt": "2026-10-24T00:00:00Z",
+                "subject": "Merge fixture",
+                "decorations": [
+                  "refs/heads/main"
+                ]
+              },
+              "outsideView": true
+            }
+          ],
+          "refs": [
+            {
+              "name": "refs/heads/main",
+              "displayName": "main",
+              "kind": "local",
+              "oid": "object-0",
+              "commitOid": "commit-0",
+              "symbolicTarget": null,
+              "hidden": false
+            },
+            {
+              "name": "refs/remotes/origin/topic",
+              "displayName": "origin/topic",
+              "kind": "remote",
+              "oid": "object-1",
+              "commitOid": "commit-1",
+              "symbolicTarget": null,
+              "hidden": false
+            },
+            {
+              "name": "refs/tags/v1",
+              "displayName": "v1",
+              "kind": "tag",
+              "oid": "object-2",
+              "commitOid": null,
+              "symbolicTarget": null,
+              "hidden": false
+            },
+            {
+              "name": "refs/stash",
+              "displayName": "stash",
+              "kind": "stash",
+              "oid": "object-3",
+              "commitOid": "commit-3",
+              "symbolicTarget": null,
+              "hidden": false
+            }
+          ],
+          "nextCursor": null
+        }
+      }
+    },
+    {
+      "command": "get_commit_details",
+      "request": {
+        "context": {
+          "scope": {
+            "repoId": "repo-fixture",
+            "worktreeId": "worktree-fixture",
+            "generation": "9007199254740994"
+          },
+          "snapshotId": "snapshot-fixture"
+        },
+        "commitHandle": "commit-handle-fixture",
+        "base": {
+          "kind": "parent",
+          "index": 1
+        }
+      },
+      "result": {
+        "ok": true,
+        "value": {
+          "context": {
+            "scope": {
+              "repoId": "repo-fixture",
+              "worktreeId": "worktree-fixture",
+              "generation": "9007199254740994"
+            },
+            "snapshotId": "snapshot-fixture"
+          },
+          "commit": {
+            "handle": "commit-handle-fixture",
+            "oid": "commit-fixture",
+            "parents": [
+              {
+                "oid": "parent-0",
+                "boundary": "loaded"
+              },
+              {
+                "oid": "parent-1",
+                "boundary": "offPage"
+              },
+              {
+                "oid": "parent-2",
+                "boundary": "outsideView"
+              },
+              {
+                "oid": "parent-3",
+                "boundary": "shallow"
+              },
+              {
+                "oid": "parent-4",
+                "boundary": "missing"
+              }
+            ],
+            "authorName": "Fixture",
+            "authorEmail": "fixture@example.invalid",
+            "authoredAt": "2026-10-24T00:00:00Z",
+            "committedAt": "2026-10-24T00:00:00Z",
+            "subject": "Merge fixture",
+            "decorations": [
+              "refs/heads/main"
+            ]
+          },
+          "message": "Merge fixture\n\nBody",
+          "committerName": "Committer",
+          "committerEmail": "committer@example.invalid",
+          "base": {
+            "kind": "parent",
+            "index": 1
+          },
+          "files": [
+            {
+              "handle": "file-fixture",
+              "pathDisplay": "odd\nname.txt",
+              "previousPathDisplay": "old.txt",
+              "kind": "renamed",
+              "oldMode": "100644",
+              "newMode": "100644"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "command": "get_commit_diff",
+      "request": {
+        "context": {
+          "scope": {
+            "repoId": "repo-fixture",
+            "worktreeId": "worktree-fixture",
+            "generation": "9007199254740994"
+          },
+          "snapshotId": "snapshot-fixture"
+        },
+        "fileHandle": "file-fixture"
+      },
+      "result": {
+        "ok": true,
+        "value": {
+          "context": {
+            "scope": {
+              "repoId": "repo-fixture",
+              "worktreeId": "worktree-fixture",
+              "generation": "9007199254740994"
+            },
+            "snapshotId": "snapshot-fixture"
+          },
+          "fileHandle": "file-fixture",
+          "content": {
+            "kind": "text",
+            "original": "before\n",
+            "modified": "after\n",
+            "language": null
+          }
+        }
+      }
+    },
+    {
+      "command": "get_repository_view",
+      "request": {
+        "scope": {
+          "repoId": "repo-fixture",
+          "worktreeId": "worktree-fixture",
+          "generation": "9007199254740994"
+        }
+      },
+      "result": {
+        "ok": true,
+        "value": {
+          "scope": {
+            "repoId": "repo-fixture",
+            "worktreeId": "worktree-fixture",
+            "generation": "9007199254740994"
+          },
+          "viewRevision": "9007199254740995",
+          "view": {
+            "filter": {
+              "hiddenRefs": [
+                "refs/heads/hidden"
+              ],
+              "soloRefs": [
+                "refs/heads/main",
+                "refs/remotes/origin/topic"
+              ]
+            },
+            "selectedOid": "commit-fixture",
+            "anchorOid": null,
+            "anchorOffset": 12.5,
+            "sidebarWidth": 260,
+            "detailsHeight": 300,
+            "diffLayout": "sideBySide",
+            "sidebarCollapsed": false
+          }
+        }
+      }
+    },
+    {
+      "command": "save_repository_view",
+      "request": {
+        "scope": {
+          "repoId": "repo-fixture",
+          "worktreeId": "worktree-fixture",
+          "generation": "9007199254740994"
+        },
+        "expectedRevision": "9007199254740994",
+        "view": {
+          "filter": {
+            "hiddenRefs": [
+              "refs/heads/hidden"
+            ],
+            "soloRefs": [
+              "refs/heads/main",
+              "refs/remotes/origin/topic"
+            ]
+          },
+          "selectedOid": "commit-fixture",
+          "anchorOid": null,
+          "anchorOffset": 12.5,
+          "sidebarWidth": 260,
+          "detailsHeight": 300,
+          "diffLayout": "sideBySide",
+          "sidebarCollapsed": false
+        }
+      },
+      "result": {
+        "ok": true,
+        "value": {
+          "scope": {
+            "repoId": "repo-fixture",
+            "worktreeId": "worktree-fixture",
+            "generation": "9007199254740994"
+          },
+          "viewRevision": "9007199254740995",
+          "view": {
+            "filter": {
+              "hiddenRefs": [
+                "refs/heads/hidden"
+              ],
+              "soloRefs": [
+                "refs/heads/main",
+                "refs/remotes/origin/topic"
+              ]
+            },
+            "selectedOid": "commit-fixture",
+            "anchorOid": null,
+            "anchorOffset": 12.5,
+            "sidebarWidth": 260,
+            "detailsHeight": 300,
+            "diffLayout": "sideBySide",
+            "sidebarCollapsed": false
+          }
+        }
+      }
+    },
+    {
+      "command": "watch_repository",
+      "request": {
+        "scope": {
+          "repoId": "repo-fixture",
+          "worktreeId": "worktree-fixture",
+          "generation": "9007199254740994"
+        }
+      },
+      "result": {
+        "ok": true,
+        "value": {
+          "scope": {
+            "repoId": "repo-fixture",
+            "worktreeId": "worktree-fixture",
+            "generation": "9007199254740994"
+          },
+          "subscriptionId": "watch-fixture",
+          "sequence": "0",
+          "status": "watching"
+        }
+      }
+    },
+    {
+      "command": "unwatch_repository",
+      "request": {
+        "subscriptionId": "watch-fixture"
+      },
+      "result": {
+        "ok": true,
+        "value": null
+      }
+    }
+  ],
+  "event": {
+    "scope": {
+      "repoId": "repo-fixture",
+      "worktreeId": "worktree-fixture",
+      "generation": "9007199254740994"
+    },
+    "subscriptionId": "watch-fixture",
+    "sequence": "9007199254740995",
+    "reason": "overflow"
+  },
+  "diffVariants": [
+    {
+      "context": {
+        "scope": {
+          "repoId": "repo-fixture",
+          "worktreeId": "worktree-fixture",
+          "generation": "9007199254740994"
+        },
+        "snapshotId": "snapshot-fixture"
+      },
+      "fileHandle": "file-fixture",
+      "content": {
+        "kind": "unavailable",
+        "reason": "binary"
+      }
+    },
+    {
+      "context": {
+        "scope": {
+          "repoId": "repo-fixture",
+          "worktreeId": "worktree-fixture",
+          "generation": "9007199254740994"
+        },
+        "snapshotId": "snapshot-fixture"
+      },
+      "fileHandle": "file-fixture",
+      "content": {
+        "kind": "unavailable",
+        "reason": "gitlink"
+      }
+    },
+    {
+      "context": {
+        "scope": {
+          "repoId": "repo-fixture",
+          "worktreeId": "worktree-fixture",
+          "generation": "9007199254740994"
+        },
+        "snapshotId": "snapshot-fixture"
+      },
+      "fileHandle": "file-fixture",
+      "content": {
+        "kind": "unavailable",
+        "reason": "tooLarge"
+      }
+    },
+    {
+      "context": {
+        "scope": {
+          "repoId": "repo-fixture",
+          "worktreeId": "worktree-fixture",
+          "generation": "9007199254740994"
+        },
+        "snapshotId": "snapshot-fixture"
+      },
+      "fileHandle": "file-fixture",
+      "content": {
+        "kind": "unavailable",
+        "reason": "unsupportedEncoding"
+      }
+    },
+    {
+      "context": {
+        "scope": {
+          "repoId": "repo-fixture",
+          "worktreeId": "worktree-fixture",
+          "generation": "9007199254740994"
+        },
+        "snapshotId": "snapshot-fixture"
+      },
+      "fileHandle": "file-fixture",
+      "content": {
+        "kind": "unavailable",
+        "reason": "missingObject"
+      }
+    }
+  ],
+  "baseVariants": [
+    {
+      "kind": "root"
+    },
+    {
+      "kind": "parent",
+      "index": 0
+    }
+  ],
+  "fileKinds": [
+    "added",
+    "deleted",
+    "modified",
+    "renamed",
+    "copied",
+    "typeChanged",
+    "unmerged"
+  ],
+  "watchVariants": [
+    {
+      "scope": {
+        "repoId": "repo-fixture",
+        "worktreeId": "worktree-fixture",
+        "generation": "9007199254740994"
+      },
+      "subscriptionId": "watch-fixture",
+      "sequence": "1",
+      "status": "fallback"
+    }
+  ],
+  "changeReasons": [
+    "changed",
+    "overflow",
+    "unavailable"
+  ],
+  "boundaries": [
+    "loaded",
+    "offPage",
+    "outsideView",
+    "shallow",
+    "missing"
+  ]
+} satisfies {commands: Sample[]; event:RepositoryChangedEvent; diffVariants:CommitDiff[]; baseVariants:DiffBase[]; fileKinds:CommitFileKind[]; watchVariants:RepositoryWatch[]; changeReasons:RepositoryChangeReason[]; boundaries:ParentBoundary[]};
+it('shares all additive wire examples with Rust, including boundaries and unavailable diffs', () => {expect(fixture).toEqual(typed);expect(new Set(typed.commands.map(s=>s.command)).size).toBe(9);});
+it('sends only scoped opaque handles through the standard envelope',async()=>{const sample=typed.commands.find(s=>s.command==='get_commit_diff')!;vi.mocked(invoke).mockResolvedValueOnce(sample.result);expect(await call('get_commit_diff',sample.request)).toEqual(sample.result);expect(invoke).toHaveBeenCalledWith('get_commit_diff',{request:sample.request});});

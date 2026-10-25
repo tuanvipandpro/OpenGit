@@ -1,0 +1,336 @@
+{
+  "source": "Owned Git fast-import fixture; Git rev-list --topo-order --parents oracle",
+  "head": {
+    "kind": "branch",
+    "branch": "main",
+    "oid": "b7ea984040b1b5d6d2d628bd916289f3a8595d84"
+  },
+  "refs": [
+    {
+      "name": "refs/heads/feature/alpha",
+      "oid": "9f126a969beb423beed8b05775f9241e4e039095",
+      "commitOid": "9f126a969beb423beed8b05775f9241e4e039095",
+      "symbolicTarget": null,
+      "kind": "local"
+    },
+    {
+      "name": "refs/heads/feature/beta",
+      "oid": "b9fd8a9e7fdd6ef2af42b9a4d5e7b5b5dcfd003e",
+      "commitOid": "b9fd8a9e7fdd6ef2af42b9a4d5e7b5b5dcfd003e",
+      "symbolicTarget": null,
+      "kind": "local"
+    },
+    {
+      "name": "refs/heads/main",
+      "oid": "b7ea984040b1b5d6d2d628bd916289f3a8595d84",
+      "commitOid": "b7ea984040b1b5d6d2d628bd916289f3a8595d84",
+      "symbolicTarget": null,
+      "kind": "local"
+    },
+    {
+      "name": "refs/heads/orphan/root",
+      "oid": "df4c5b24ac3eed0c6239016eeb62091141924745",
+      "commitOid": "df4c5b24ac3eed0c6239016eeb62091141924745",
+      "symbolicTarget": null,
+      "kind": "local"
+    },
+    {
+      "name": "refs/heads/topic/unmerged",
+      "oid": "7899dec38641b5a5226eff2470b515bb8642bd10",
+      "commitOid": "7899dec38641b5a5226eff2470b515bb8642bd10",
+      "symbolicTarget": null,
+      "kind": "local"
+    },
+    {
+      "name": "refs/remotes/origin/HEAD",
+      "oid": "b7ea984040b1b5d6d2d628bd916289f3a8595d84",
+      "commitOid": "b7ea984040b1b5d6d2d628bd916289f3a8595d84",
+      "symbolicTarget": "refs/remotes/origin/main",
+      "kind": "remote"
+    },
+    {
+      "name": "refs/remotes/origin/main",
+      "oid": "b7ea984040b1b5d6d2d628bd916289f3a8595d84",
+      "commitOid": "b7ea984040b1b5d6d2d628bd916289f3a8595d84",
+      "symbolicTarget": null,
+      "kind": "remote"
+    },
+    {
+      "name": "refs/tags/v-fixture",
+      "oid": "b1c4950fe3dc27a803e0d077e62fbc0c065e5b9d",
+      "commitOid": "264c704f2f1503a135b2e5db091819074b5b6f1d",
+      "symbolicTarget": null,
+      "kind": "tag"
+    }
+  ],
+  "commits": [
+    {
+      "oid": "df4c5b24ac3eed0c6239016eeb62091141924745",
+      "parents": []
+    },
+    {
+      "oid": "7899dec38641b5a5226eff2470b515bb8642bd10",
+      "parents": [
+        "684cdb5a1b2ffd1378ec239b5d8d2d78452c70fe"
+      ]
+    },
+    {
+      "oid": "b7ea984040b1b5d6d2d628bd916289f3a8595d84",
+      "parents": [
+        "bea2d1f17c8fc098c160a0805905284fe22546f9",
+        "9f126a969beb423beed8b05775f9241e4e039095",
+        "b9fd8a9e7fdd6ef2af42b9a4d5e7b5b5dcfd003e"
+      ]
+    },
+    {
+      "oid": "b9fd8a9e7fdd6ef2af42b9a4d5e7b5b5dcfd003e",
+      "parents": [
+        "fadbe1dafdf3e4d1947815c21ebda95e1ade5790"
+      ]
+    },
+    {
+      "oid": "9f126a969beb423beed8b05775f9241e4e039095",
+      "parents": [
+        "684cdb5a1b2ffd1378ec239b5d8d2d78452c70fe"
+      ]
+    },
+    {
+      "oid": "bea2d1f17c8fc098c160a0805905284fe22546f9",
+      "parents": [
+        "9459d8013cdbf16944a2caa1205d650278f10cf3"
+      ]
+    },
+    {
+      "oid": "9459d8013cdbf16944a2caa1205d650278f10cf3",
+      "parents": [
+        "8deaf75a34b73504e559d6475d2faa7e9730a4b0"
+      ]
+    },
+    {
+      "oid": "8deaf75a34b73504e559d6475d2faa7e9730a4b0",
+      "parents": [
+        "f4da198ed5efef88bcb99fc159b02de21ff6f638"
+      ]
+    },
+    {
+      "oid": "f4da198ed5efef88bcb99fc159b02de21ff6f638",
+      "parents": [
+        "264c704f2f1503a135b2e5db091819074b5b6f1d"
+      ]
+    },
+    {
+      "oid": "264c704f2f1503a135b2e5db091819074b5b6f1d",
+      "parents": [
+        "819c8933345b812a6f35c2c76505aa362c775907"
+      ]
+    },
+    {
+      "oid": "819c8933345b812a6f35c2c76505aa362c775907",
+      "parents": [
+        "5828edd5ac169b1ab7aa8d820ce58603c9fe7476"
+      ]
+    },
+    {
+      "oid": "5828edd5ac169b1ab7aa8d820ce58603c9fe7476",
+      "parents": [
+        "c229b8c2bb6cda11eda59132fea53ec48085c0fb"
+      ]
+    },
+    {
+      "oid": "c229b8c2bb6cda11eda59132fea53ec48085c0fb",
+      "parents": [
+        "eeece9433cc3c856620af7fa75d23fe4bbe20cf9"
+      ]
+    },
+    {
+      "oid": "eeece9433cc3c856620af7fa75d23fe4bbe20cf9",
+      "parents": [
+        "f4ab48ef76bd2d9e0f0b578bac54874ae9788f0b"
+      ]
+    },
+    {
+      "oid": "f4ab48ef76bd2d9e0f0b578bac54874ae9788f0b",
+      "parents": [
+        "7c282f7a74e1936975aa8fd4abb35558dbd55962"
+      ]
+    },
+    {
+      "oid": "7c282f7a74e1936975aa8fd4abb35558dbd55962",
+      "parents": [
+        "c59bd7d9aa7e08eec790ea61448d7d7ad8310e17"
+      ]
+    },
+    {
+      "oid": "c59bd7d9aa7e08eec790ea61448d7d7ad8310e17",
+      "parents": [
+        "f5fa69b449d1f008c9c6a40c9130d53f8400dda6"
+      ]
+    },
+    {
+      "oid": "f5fa69b449d1f008c9c6a40c9130d53f8400dda6",
+      "parents": [
+        "f5338ed5f8fcd59d8d9e0cfb3cf2331bc28400c8"
+      ]
+    },
+    {
+      "oid": "f5338ed5f8fcd59d8d9e0cfb3cf2331bc28400c8",
+      "parents": [
+        "1f71b0da4fcd1e2658b1a83ef21e79d258e587f6"
+      ]
+    },
+    {
+      "oid": "1f71b0da4fcd1e2658b1a83ef21e79d258e587f6",
+      "parents": [
+        "30365c0b59f59bb3360b81a2a2d7aa27a078a2bc"
+      ]
+    },
+    {
+      "oid": "30365c0b59f59bb3360b81a2a2d7aa27a078a2bc",
+      "parents": [
+        "5705628ff1f2ecc0d9da555c72ffdaaf66a1de86"
+      ]
+    },
+    {
+      "oid": "5705628ff1f2ecc0d9da555c72ffdaaf66a1de86",
+      "parents": [
+        "ba076d11ef40a79753118e517dba7f2641a4e43d"
+      ]
+    },
+    {
+      "oid": "ba076d11ef40a79753118e517dba7f2641a4e43d",
+      "parents": [
+        "f76c001befd7d3c482d3fcfc31e5d464646145b4"
+      ]
+    },
+    {
+      "oid": "f76c001befd7d3c482d3fcfc31e5d464646145b4",
+      "parents": [
+        "a6ec70e874683d1ac4e494176445d963cee3059c"
+      ]
+    },
+    {
+      "oid": "a6ec70e874683d1ac4e494176445d963cee3059c",
+      "parents": [
+        "684cdb5a1b2ffd1378ec239b5d8d2d78452c70fe"
+      ]
+    },
+    {
+      "oid": "684cdb5a1b2ffd1378ec239b5d8d2d78452c70fe",
+      "parents": [
+        "44b5d85d1dac760358b400ead1b6c68af9750773"
+      ]
+    },
+    {
+      "oid": "44b5d85d1dac760358b400ead1b6c68af9750773",
+      "parents": [
+        "792bceea3fc6ca9a0164e375aefcc4404be1984e"
+      ]
+    },
+    {
+      "oid": "792bceea3fc6ca9a0164e375aefcc4404be1984e",
+      "parents": [
+        "fadbe1dafdf3e4d1947815c21ebda95e1ade5790"
+      ]
+    },
+    {
+      "oid": "fadbe1dafdf3e4d1947815c21ebda95e1ade5790",
+      "parents": [
+        "24009ae386f7ce10ac2fc3a97a35ca8938b267d2"
+      ]
+    },
+    {
+      "oid": "24009ae386f7ce10ac2fc3a97a35ca8938b267d2",
+      "parents": [
+        "9b0cdd7dd9b445c0f473400cd63b7790454dc525"
+      ]
+    },
+    {
+      "oid": "9b0cdd7dd9b445c0f473400cd63b7790454dc525",
+      "parents": [
+        "abc62d2fdc1de9647e3ec76e10870603d34b1170"
+      ]
+    },
+    {
+      "oid": "abc62d2fdc1de9647e3ec76e10870603d34b1170",
+      "parents": [
+        "64424cb5d104d0a13f9c39bcbbfb8141ad746a21"
+      ]
+    },
+    {
+      "oid": "64424cb5d104d0a13f9c39bcbbfb8141ad746a21",
+      "parents": [
+        "699593d0f5093bfb63b6d97aa1e76274bb8a1e1f"
+      ]
+    },
+    {
+      "oid": "699593d0f5093bfb63b6d97aa1e76274bb8a1e1f",
+      "parents": [
+        "c292db527e02d9a73c37af44164ed8e0d4356df7"
+      ]
+    },
+    {
+      "oid": "c292db527e02d9a73c37af44164ed8e0d4356df7",
+      "parents": [
+        "46ac9a837a10bde4f70a06380a286ab4c3bb261a"
+      ]
+    },
+    {
+      "oid": "46ac9a837a10bde4f70a06380a286ab4c3bb261a",
+      "parents": [
+        "44f9973215ee489f2f2c3e39b41cd7bf1118e9da"
+      ]
+    },
+    {
+      "oid": "44f9973215ee489f2f2c3e39b41cd7bf1118e9da",
+      "parents": [
+        "7758a480847e94b3aafdbab677ff3f2c5fbc0010"
+      ]
+    },
+    {
+      "oid": "7758a480847e94b3aafdbab677ff3f2c5fbc0010",
+      "parents": [
+        "3b3110725b7e86a39ccb394c0f6ac502b4136b45"
+      ]
+    },
+    {
+      "oid": "3b3110725b7e86a39ccb394c0f6ac502b4136b45",
+      "parents": [
+        "d53a42440f054a72d3759dda611ea6450e31f224"
+      ]
+    },
+    {
+      "oid": "d53a42440f054a72d3759dda611ea6450e31f224",
+      "parents": [
+        "2652acae506089df5251fd0264e2217dbb2e6167"
+      ]
+    },
+    {
+      "oid": "2652acae506089df5251fd0264e2217dbb2e6167",
+      "parents": [
+        "858a0d41094c9aa0669ed356d10a99d7d5859d2d"
+      ]
+    },
+    {
+      "oid": "858a0d41094c9aa0669ed356d10a99d7d5859d2d",
+      "parents": [
+        "dd179a4a7fe37a65fce74d2b0b4d2e0ed026d21b"
+      ]
+    },
+    {
+      "oid": "dd179a4a7fe37a65fce74d2b0b4d2e0ed026d21b",
+      "parents": [
+        "f6a4b0cf3ebdc08df01991e969aeb025586de858"
+      ]
+    },
+    {
+      "oid": "f6a4b0cf3ebdc08df01991e969aeb025586de858",
+      "parents": [
+        "e099c131bea1239c80465d5481fbc332788acef9"
+      ]
+    },
+    {
+      "oid": "e099c131bea1239c80465d5481fbc332788acef9",
+      "parents": []
+    }
+  ]
+}

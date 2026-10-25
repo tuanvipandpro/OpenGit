@@ -169,6 +169,7 @@ if __name__ == '__main__':
             prompts = clone_form(desktop, fixture.https_url, 'private-https', fixture)
             assert 'username' in prompts and 'password' in prompts
             assert_no_credentials(data, fixture, active=True)
+            click_text(desktop, 'Overview')
             wait_for(lambda: body_contains(desktop, 'Working directory is clean'),
                      'cloned repository inspection rendered')
             desktop.screenshot('clone.png')

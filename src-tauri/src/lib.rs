@@ -3,6 +3,7 @@ pub mod backend;
 pub mod clone;
 pub mod domain;
 pub mod git;
+pub mod history;
 pub mod ipc;
 pub mod operations;
 pub mod persistence;
@@ -143,6 +144,108 @@ mod desktop {
             Err(error) => return ApiResult::Failure(error),
         };
         result(service.inspect_repository(window.label(), request).await)
+    }
+    #[tauri::command]
+    async fn open_history(
+        request: OpenHistoryRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<HistorySession> {
+        let service = match backend(&app) {
+            Ok(service) => service,
+            Err(error) => return ApiResult::Failure(error),
+        };
+        result(service.open_history(window.label(), request).await)
+    }
+    #[tauri::command]
+    async fn load_history_page(
+        request: LoadHistoryPageRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<HistoryPage> {
+        let service = match backend(&app) {
+            Ok(service) => service,
+            Err(error) => return ApiResult::Failure(error),
+        };
+        result(service.load_history_page(window.label(), request).await)
+    }
+    #[tauri::command]
+    async fn search_history(
+        request: SearchHistoryRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<HistorySearchPage> {
+        let service = match backend(&app) {
+            Ok(service) => service,
+            Err(error) => return ApiResult::Failure(error),
+        };
+        result(service.search_history(window.label(), request).await)
+    }
+    #[tauri::command]
+    async fn get_commit_details(
+        request: GetCommitDetailsRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<CommitDetails> {
+        let service = match backend(&app) {
+            Ok(service) => service,
+            Err(error) => return ApiResult::Failure(error),
+        };
+        result(service.get_commit_details(window.label(), request).await)
+    }
+    #[tauri::command]
+    async fn get_commit_diff(
+        request: GetCommitDiffRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<CommitDiff> {
+        let service = match backend(&app) {
+            Ok(service) => service,
+            Err(error) => return ApiResult::Failure(error),
+        };
+        result(service.get_commit_diff(window.label(), request).await)
+    }
+    #[tauri::command]
+    async fn get_repository_view(
+        request: GetRepositoryViewRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<RepositoryViewState> {
+        result(
+            backend(&app).and_then(|service| service.get_repository_view(window.label(), request)),
+        )
+    }
+    #[tauri::command]
+    async fn save_repository_view(
+        request: SaveRepositoryViewRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<RepositoryViewState> {
+        result(
+            backend(&app).and_then(|service| service.save_repository_view(window.label(), request)),
+        )
+    }
+    #[tauri::command]
+    async fn watch_repository(
+        request: WatchRepositoryRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<RepositoryWatch> {
+        let service = match backend(&app) {
+            Ok(service) => service,
+            Err(error) => return ApiResult::Failure(error),
+        };
+        result(service.watch_repository(window.label(), request).await)
+    }
+    #[tauri::command]
+    async fn unwatch_repository(
+        request: UnwatchRepositoryRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<()> {
+        result(
+            backend(&app).and_then(|service| service.unwatch_repository(window.label(), request)),
+        )
     }
     #[tauri::command]
     async fn select_repository(
@@ -292,6 +395,37 @@ mod desktop {
                     .and_then(|directory| Backend::new(&directory))
                     .map(Arc::new);
                 if let Ok(backend) = &service {
+                    let mut changes = backend.subscribe_repository_changes();
+                    let watches = Arc::downgrade(&backend.watches);
+                    let event_app = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        loop {
+                            match changes.recv().await {
+                                Ok(change) => {
+                                    let Some(watches) = watches.upgrade() else {
+                                        break;
+                                    };
+                                    watches.forward_current(&change, || {
+                                        event_app
+                                            .emit_to(
+                                                &change.window,
+                                                "opengit://repository-changed",
+                                                &change.event,
+                                            )
+                                            .is_ok()
+                                    });
+                                }
+                                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                                    if let Some(watches) = watches.upgrade() {
+                                        watches.delivery_gap();
+                                    } else {
+                                        break;
+                                    }
+                                }
+                                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                            }
+                        }
+                    });
                     let mut events = backend.scheduler.subscribe();
                     let app = app.handle().clone();
                     tauri::async_runtime::spawn(async move {
@@ -325,6 +459,15 @@ mod desktop {
                 get_workspace,
                 choose_repository,
                 inspect_repository,
+                open_history,
+                load_history_page,
+                search_history,
+                get_commit_details,
+                get_commit_diff,
+                get_repository_view,
+                save_repository_view,
+                watch_repository,
+                unwatch_repository,
                 select_repository,
                 forget_repository,
                 get_operations,

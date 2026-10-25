@@ -57,6 +57,7 @@ if __name__ == '__main__':
             wait_for(lambda: len(workspace(desktop)['repositories']) == 1, 'real folder registration')
             first = workspace(desktop)
             selected = first['activeSelection']
+            click_text(desktop, 'Overview')
             wait_for(lambda: body_contains(desktop, 'Working directory is clean'), 'clean status')
             assert body_contains(desktop, 'main')
             (fixture.source / 'README.txt').write_text('Modified through the acceptance fixture\n', encoding='utf-8')
@@ -71,6 +72,7 @@ if __name__ == '__main__':
             print('Screenshot:', shot)
             click_text(desktop, 'Open repository')
             wait_for(lambda: len(workspace(desktop)['repositories']) == 2, 'bare repository registration')
+            click_text(desktop, 'Overview')
             wait_for(lambda: body_contains(desktop, 'This bare repository has no working directory'), 'bare metadata UI')
             before_cancel = workspace(desktop)
             click_text(desktop, 'Open repository')  # Native picker cancellation seam.
@@ -79,8 +81,11 @@ if __name__ == '__main__':
             result = desktop.invoke('select_repository', selected)
             assert result['ok']
         with DesktopSession(ROOT, executable, {**env, 'OPENGIT_E2E_DIALOGS_JSON': '[]'}) as reopened:
+            wait_for(lambda: reopened.script('return typeof window.__TAURI_INTERNALS__?.invoke === "function"'),
+                     'reopened native bridge')
             wait_for(lambda: len(workspace(reopened)['repositories']) == 2, 'SQLite reopen')
             assert workspace(reopened)['activeSelection'] == selected
+            click_text(reopened, 'Overview')
             wait_for(lambda: body_contains(reopened, 'README.txt'), 'persistent selection restored')
             current = workspace(reopened)
             repo = next(r for r in current['repositories'] if r['id'] == selected['repoId'])

@@ -59,16 +59,50 @@ fn helper(fixture: &Path) -> PathBuf {
         .map(|path| path.join("rustc.exe"))
         .find(|path| path.is_file())
         .unwrap();
-    let compiled = std::process::Command::new(rustc)
+    // This fixture invokes rustc directly, so it must forward Cargo's native
+    // import-library search path as well as the Rust dependency directory.
+    // notify's pinned Windows backend now brings in windows-targets 0.53.
+    let mut native_paths = std::collections::BTreeSet::new();
+    for entry in std::fs::read_dir(deps.parent().unwrap().join("build"))
+        .unwrap()
+        .filter_map(Result::ok)
+    {
+        if !entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with("windows_x86_64_msvc-")
+        {
+            continue;
+        }
+        let Ok(output) = std::fs::read_to_string(entry.path().join("output")) else {
+            continue;
+        };
+        for line in output.lines() {
+            if let Some(path) = line.strip_prefix("cargo:rustc-link-search=native=") {
+                let path = PathBuf::from(path);
+                if path.is_absolute() && path.join("windows.0.53.0.lib").is_file() {
+                    native_paths.insert(path);
+                }
+            }
+        }
+    }
+    assert!(
+        !native_paths.is_empty(),
+        "Cargo Windows native import-library output missing"
+    );
+    let mut compiler = std::process::Command::new(rustc);
+    compiler
         .arg(source)
         .args(["--edition", "2021", "--extern"])
         .arg(format!("opengit_lib={}", library.display()))
         .arg("-L")
         .arg(format!("dependency={}", deps.display()))
         .arg("-o")
-        .arg(&executable)
-        .output()
-        .unwrap();
+        .arg(&executable);
+    for path in native_paths {
+        compiler.arg("-L").arg(format!("native={}", path.display()));
+    }
+    let compiled = compiler.output().unwrap();
     assert!(
         compiled.status.success(),
         "fixture helper compile failed: {}",

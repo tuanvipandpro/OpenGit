@@ -39,7 +39,7 @@ describe('durable workspace and stale responses', () => {
     chosen = { ...initial, revision: '1', activeSelection: null }; await store.getState().open();
     expect(store.getState().workspace?.activeSelection).toEqual(initial.activeSelection);
   });
-  it('prevents a delayed refresh from replacing a newer inspection', async () => {
+  it('serializes refreshes and applies the final queued inspection', async () => {
     const requests: { request: Record<string, unknown>; pending: ReturnType<typeof deferred<ApiResult<RepositorySnapshot>>> }[] = [];
     let intercept = false;
     const api = mockApi((command, request) => {
@@ -47,8 +47,12 @@ describe('durable workspace and stale responses', () => {
     });
     const store = createWorkspaceStore(api as unknown as Api); await store.getState().initialize(); intercept = true;
     const old = store.getState().refresh(), latest = store.getState().refresh();
-    requests[1].pending.resolve(ok({ ...sample, generation: String(requests[1].request.generation), head: { kind: 'branch', branch: 'latest', oid: 'new' } })); await latest;
-    requests[0].pending.resolve(ok({ ...sample, generation: String(requests[0].request.generation), head: { kind: 'branch', branch: 'stale', oid: 'old' } })); await old;
+    expect(requests).toHaveLength(1);
+    requests[0].pending.resolve(ok({ ...sample, generation: String(requests[0].request.generation), head: { kind: 'branch', branch: 'previous', oid: 'old' } }));
+    await vi.waitFor(() => expect(requests).toHaveLength(2));
+    requests[1].pending.resolve(ok({ ...sample, generation: String(requests[1].request.generation), head: { kind: 'branch', branch: 'latest', oid: 'new' } }));
+    await Promise.all([old, latest]);
+    expect(BigInt(String(requests[1].request.generation))).toBeGreaterThan(BigInt(String(requests[0].request.generation)));
     expect(store.getState().snapshot?.head.branch).toBe('latest');
   });
   it('serializes rapid switches so the final user choice is persisted', async () => {

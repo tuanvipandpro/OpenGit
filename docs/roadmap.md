@@ -1,12 +1,12 @@
 # OpenGit roadmap
 
-Release completion is not claimed. The 0.1.0 implementation candidate is under acceptance; later versions remain planned. The canonical current target is recorded in the root `VERSION` file; it does not imply that a release exists. This document is scope, not implementation evidence or authorization to build all versions in one task. First supported target: Windows; portable architecture for later macOS/Linux releases.
+Release completion is not claimed. The 0.2.0 implementation candidate has native Windows evidence; versions0.3.0 onward remain planned. The canonical current target is recorded in the root `VERSION` file; it does not imply that a release exists. This document is scope, not implementation evidence or authorization to build all versions in one task. First supported target: Windows; portable architecture for later macOS/Linux releases.
 
-Current observations and remaining external/integrated review gates are tracked in [0.1.0 acceptance evidence](testing/0.1.0-acceptance.md). This roadmap does not replace that living evidence.
+Current implementation/review status is tracked in [0.2.0 evidence](testing/0.2.0-acceptance.md); earlier external-provider EXT-01 stays in [0.1.0 acceptance evidence](testing/0.1.0-acceptance.md). This roadmap does not replace that living evidence.
 
 ## Requirement IDs
 
-Tài liệu triển khai: [kiến trúc dự kiến](architecture.md), [kế hoạch toàn sản phẩm](plans/implementation-plan.md), [packet 0.1.0](plans/0.1.0.md). Các tài liệu này giữ trạng thái Planned; kế hoạch hoàn tất không đồng nghĩa ứng dụng hoặc release đã hoàn tất.
+Tài liệu triển khai: [thiết kế ban đầu](architecture.md), [kế hoạch toàn sản phẩm](plans/implementation-plan.md), [packet0.2.0](plans/0.2.0.md). Kế hoạch mô tả scope; chỉ evidence xác nhận kiểm chứng implementation, không đồng nghĩa release đã phát hành.
 
 | ID | Requirement | Delivery |
 | --- | --- | --- |
@@ -46,7 +46,7 @@ Hide/Solo is presentation-only. Preserve shared ancestors needed to interpret vi
 
 Acceptance: merge-heavy fixture histories render correctly across filters and page boundaries; state survives reopen; selection/scroll stay stable. Establish a reference machine, representative dataset and measured performance baseline before setting release thresholds.
 
-Implementation order for the next planning checkpoint: (1) quieter refresh policy, (2) paginated history/ref queries and ancestry fixtures, (3) graph and branch/tag sidebar, (4) commit details/diff, (5) history/ref search, (6) multi-branch Hide/Solo and persisted views, (7) watcher integration, performance and native acceptance. The 0.1.0 checkpoint retains its existing behavior; these are 0.2.0 requirements, not completed features. External provider acceptance left open by 0.1.0 stays tracked separately and is not silently closed by the next version.
+Implementation packets and validation for this scope are recorded in the0.2.0 plan/evidence: quiet refresh, paginated history/ref queries, graph/sidebar, details/diff, full search, multi-Hide/Solo/persisted views and watcher integration. External provider acceptance left open by0.1.0 stays tracked separately and is not closed by history work. No later-version implementation is authorized by this roadmap.
 
 ## v0.3.0 — Daily Git actions
 

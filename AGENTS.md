@@ -2,7 +2,7 @@
 
 ## Scope and entry point
 
-- OpenGit is a Windows-first Git desktop client with a 0.1.0 implementation candidate under acceptance. Read `README.md` and `docs/roadmap.md` before product work. The repository includes application source and checks; owned native integrated checks pass; external provider compatibility acceptance remains pending. Current evidence lives in `docs/testing/0.1.0-acceptance.md`; implementation does not imply release completion.
+- OpenGit is a Windows-first Git desktop client with a 0.2.0 implementation candidate. Read `README.md` and `docs/roadmap.md` before product work. Owned native graph/diff/view/watch and production checks pass; external provider compatibility acceptance remains pending. Current evidence lives in `docs/testing/0.2.0-acceptance.md`, with the earlier EXT-01 tracked in the 0.1.0 evidence; implementation does not imply release completion.
 - The primary agent is the orchestrator unless explicitly assigned another role. This file authorizes subagent delegation for the workflow below; do not ask again to use planner, workers, or reviewer for an authorized task.
 - Follow system/developer instructions and the user's current request before repository guidance. Preserve unrelated user changes. Communicate progress and results in Vietnamese unless requested otherwise; identifiers and technical instructions may be English.
 - Deliver only the requested task/version. Do not interpret the roadmap as permission to implement every release.
@@ -67,7 +67,7 @@ Inspect the relevant files and working tree. State the task tier and reason brie
 
 ## Product implementation constraints
 
-- Current foundation stack: Tauri 2, React/TypeScript/Vite, Rust/Tokio, Git CLI and SQLite. Canvas graph, TanStack Virtual and Monaco remain future scope. Exact current dependency versions are pinned in manifests and lockfiles; verify compatibility before changing them.
+- Current stack: Tauri 2, React/TypeScript/Vite, Rust/Tokio, Git CLI, SQLite, Canvas graph, TanStack Virtual, lazy readonly Monaco with local workers and notify watchers. Exact current dependency versions are pinned in manifests and lockfiles; verify compatibility before changing them.
 - Git is authoritative for repository/operation state; the app database stores UI state, cache, and task context. Detect externally started operations and changes.
 - Run Git via argument arrays, never shell-interpolated user input. Validate typed IPC requests, refs, paths, and repository scope.
 - Reuse Git credential helpers/OpenSSH. Never put credentials in logs, task documents, fixtures, or SQLite. Do not weaken certificate or SSH host verification to fix an auth error.

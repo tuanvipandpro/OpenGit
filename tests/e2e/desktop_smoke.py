@@ -20,6 +20,16 @@ def free_port():
         return s.getsockname()[1]
 
 
+def process_environment(extra_env=None):
+    env = {**os.environ, **(extra_env or {})}
+    # Windows environment names are case-insensitive. Do not pass duplicate
+    # PROGRAMFILES/ProgramFiles entries or let a differently-cased None leave
+    # an inherited switch enabled.
+    if os.name == 'nt':
+        env = {key.upper(): value for key, value in env.items()}
+    return {key: value for key, value in env.items() if value is not None}
+
+
 class DesktopSession:
     def __init__(self, root: Path, executable: Path, extra_env=None):
         self.root = root.resolve()
@@ -30,11 +40,10 @@ class DesktopSession:
         self.base = f'http://127.0.0.1:{self.port}'
         self.session = None
         self.log = (self.directory / 'driver.log').open('wb')
-        env = {**os.environ, 'WEBVIEW2_USER_DATA_FOLDER': str(self.directory / 'webview'),
-               **(extra_env or {})}
+        env = process_environment({'WEBVIEW2_USER_DATA_FOLDER': str(self.directory / 'webview'),
+                                   **(extra_env or {})})
         # None explicitly removes inherited switches (Git's NO_VERIFY is
         # enabled by mere presence, even when its text value is "false").
-        env = {key: value for key, value in env.items() if value is not None}
         self.process = subprocess.Popen([
             str(self.root / '.tools/cargo/bin/tauri-driver.exe'), '--port', str(self.port),
             '--native-port', str(native_port), '--native-driver',
@@ -206,7 +215,7 @@ if __name__ == '__main__':
             time.sleep(.25)
         assert desktop.script('return document.body.innerText.includes("OpenGit")')
         environment = desktop.invoke('get_environment', {})
-        assert environment.get('ok') is True and environment['value']['appVersion'] == '0.1.0'
+        assert environment.get('ok') is True and environment['value']['appVersion'] == (root / 'VERSION').read_text().strip()
         assert environment['value']['contractVersion'] == '1'
         invalid = desktop.invoke('get_environment', {'unexpected': 'synthetic-canary'})
         assert invalid.get('transportRejected') or invalid.get('ok') is False

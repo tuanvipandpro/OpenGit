@@ -70,6 +70,7 @@ pub fn error(code: ErrorCode, phase: Phase) -> AppError {
         ),
         ErrorCode::Timeout => ("Git exceeded the time limit.", AppErrorRetry::Retry),
         ErrorCode::OutputLimit => ("Git output exceeded the safety limit.", AppErrorRetry::None),
+        ErrorCode::Interrupted if phase == Phase::Recovery => ("Git process shutdown could not be confirmed. Restart OpenGit before further operations.", AppErrorRetry::None),
         ErrorCode::Interrupted => ("Operation was interrupted.", AppErrorRetry::None),
         ErrorCode::InvalidHandle => (
             "Selection handle is invalid or expired.",
@@ -82,6 +83,7 @@ pub fn error(code: ErrorCode, phase: Phase) -> AppError {
         ErrorCode::UnsafePath => ("Choose a safe folder and a valid Windows folder name.",AppErrorRetry::ChooseAnotherDestination),
         ErrorCode::Io if phase==Phase::Recovery => (RETENTION_NOTICE,AppErrorRetry::None),
         ErrorCode::Io => ("The operation could not access its files. Check storage and permissions; inspect any remaining staging data before retrying.",AppErrorRetry::Retry),
+        ErrorCode::UnsupportedGit if phase == Phase::Inspection => ("Installed Git does not support safe history reads. Update Git before opening history.", AppErrorRetry::None),
         ErrorCode::UnsupportedGit => (
             "Git 2.31.0 or newer is required. Update Git and retry.",
             AppErrorRetry::Retry,

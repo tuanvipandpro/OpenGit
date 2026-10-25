@@ -676,6 +676,7 @@ impl Authority {
             ref_action: plan.ref_action.clone(),
             remote_read: None,
             change_action: None,
+            sync_action: None,
             targets: plan
                 .targets
                 .iter()
@@ -687,8 +688,15 @@ impl Authority {
         };
         // Reserve all bounded local-step checkpoint/final-outcome framing before
         // enqueue. A later proof update must not discover an avoidable32KiB cap.
-        if super::changes::supported(record.kind)
-            && serde_json::to_vec(&record).map_err(|_| invalid())?.len() > 32768 - 8192
+        let reserve = if super::sync::supported(record.kind) {
+            16384
+        } else if super::changes::supported(record.kind) {
+            8192
+        } else {
+            0
+        };
+        if reserve > 0
+            && serde_json::to_vec(&record).map_err(|_| invalid())?.len() > 32768 - reserve
         {
             return Err(limit());
         }
@@ -825,23 +833,26 @@ fn handles(intent: &ActionIntent) -> Vec<(&str, Vec<TargetKind>)> {
             destination_handle,
             ..
         } => vec![
-            (remote_handle, vec![Remote]),
+            (remote_handle, vec![RemoteEndpoint]),
             (source_handle, vec![Branch]),
-            (destination_handle, vec![RemoteRef]),
+            (destination_handle, vec![RemoteDestination]),
         ],
         ActionIntent::RemoteTagPush {
             remote_handle,
             tag_handle,
             destination_handle,
         } => vec![
-            (remote_handle, vec![Remote]),
+            (remote_handle, vec![RemoteEndpoint]),
             (tag_handle, vec![Tag]),
-            (destination_handle, vec![RemoteRef]),
+            (destination_handle, vec![RemoteDestination]),
         ],
         ActionIntent::RemoteTagDelete {
             remote_handle,
             tag_handle,
-        } => vec![(remote_handle, vec![Remote]), (tag_handle, vec![Tag])],
+        } => vec![
+            (remote_handle, vec![RemoteEndpoint]),
+            (tag_handle, vec![RemoteDestination]),
+        ],
         ActionIntent::Pull { upstream_handle } => vec![(upstream_handle, vec![RemoteRef])],
         ActionIntent::Stage { change_handles } | ActionIntent::Unstage { change_handles } => {
             change_handles

@@ -10,6 +10,31 @@ const result = (value: OperationSnapshot, prune = false): ActionOperationResult 
 const failure: AppError = { code: 'Internal', phase: 'inspection', retry: 'retry', message: 'Result unavailable' };
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 
+it.each(['push', 'pull', 'remoteTagPush', 'remoteTagDelete'] as const)('Sync routes %s outcomes and retires cached evidence on compaction', async kind => {
+  const value: OperationSnapshot = { ...action('sync'), actionKind: kind }, syncResult = { steps: [], publication: null, trackingUpdated: false, upstreamUpdated: false, trackingRefreshRequired: true, fetchedOid: null, integratedOid: null };
+  let next: OperationsSnapshot = { streamId: 'sync', sequence: '1', operations: [value] };
+  const api = vi.fn(async (command: string) => command === 'get_operations' ? { ok: true, value: next } : { ok: true, value: { operation: value, result: syncResult } }) as unknown as Api;
+  const store = createOperationsStore(api); await store.getState().sync(); await store.getState().loadOutcome(value.id);
+  expect(api).toHaveBeenCalledWith('get_sync_action_outcome', { operationId: value.id }); expect(store.getState().outcomes[value.id].syncResult).toEqual(syncResult);
+  next = { ...next, sequence: '2', operations: [] }; await store.getState().sync(); expect(store.getState().outcomes).toEqual({});
+});
+it('Sync fences pending outcome replies across stream replacement and accepts null evidence conservatively', async () => {
+  const value: OperationSnapshot = { ...action('sync'), actionKind: 'pull' }, pending = deferred<unknown>(); let count = 0;
+  let next: OperationsSnapshot = { streamId: 'sync', sequence: '1', operations: [value] };
+  const api = vi.fn(async (command: string) => command === 'get_operations' ? { ok: true, value: next } : ++count === 1 ? pending.promise : { ok: true, value: { operation: value, result: null } }) as unknown as Api;
+  const store = createOperationsStore(api); await store.getState().sync(); const old = store.getState().loadOutcome(value.id);
+  next = { ...next, streamId: 'replacement' }; await store.getState().sync(); await store.getState().loadOutcome(value.id);
+  pending.resolve({ ok: true, value: { operation: value, result: { steps: [] } } }); await old;
+  expect(store.getState().outcomes[value.id].syncResult).toBeNull();
+});
+it('Sync routes authenticated reference-read evidence without retaining destination handles in Tasks', async () => {
+  const value: OperationSnapshot = { ...action('read'), actionKind: 'readRemoteRefs' }, evidence = { remoteName: 'origin', role: 'push', phase: 'observed', refCount: '3', observedAt: '2026-10-25', noGitWrites: true };
+  const api = vi.fn(async (command: string) => command === 'get_operations' ? { ok: true, value: { streamId: 'read', sequence: '1', operations: [value] } } : { ok: true, value: { operation: value, availability: 'available', evidence, snapshot: { snapshotId: 'ephemeral-destination-authority' } } }) as unknown as Api;
+  const store = createOperationsStore(api); await store.getState().sync(); await store.getState().loadOutcome(value.id);
+  expect(api).toHaveBeenCalledWith('get_remote_action_outcome', { operationId: value.id });
+  expect(store.getState().outcomes[value.id].remoteReadResult).toEqual({ availability: 'available', evidence }); expect(store.getState().outcomes[value.id]).not.toHaveProperty('snapshot');
+});
+
 it('S7 routes local-ref evidence through ref outcomes and retires it with authoritative removal', async () => {
   const local = refWire.result.operation as OperationSnapshot;
   let next: OperationsSnapshot = { streamId: 'refs', sequence: local.sequence, operations: [local] };

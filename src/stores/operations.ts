@@ -1,7 +1,7 @@
 import { createStore } from 'zustand/vanilla';
 import { listen } from '@tauri-apps/api/event';
 import { call, OPERATION_EVENT, transportError } from '../contracts';
-import type { ApiResult, CloneDestination, CommandMap, LocalCloneSource, AppError, OperationEvent, OperationSnapshot, OperationsSnapshot, ActionOperationResult, RefActionResult, ChangeActionResult } from '../contracts';
+import type { ApiResult, CloneDestination, CommandMap, LocalCloneSource, AppError, OperationEvent, OperationSnapshot, OperationsSnapshot, ActionOperationResult, RefActionResult, ChangeActionResult, SyncActionResult, RemoteActionOperationResult } from '../contracts';
 import type { Api } from './workspace';
 export type Subscribe = (handler: (event: OperationEvent) => void) => Promise<() => void>;
 const subscribe: Subscribe = handler => listen<OperationEvent>(OPERATION_EVENT, event => handler(event.payload));
@@ -10,7 +10,8 @@ const sameOperationVersion = (a: OperationSnapshot | undefined, b: OperationSnap
   && a.id === b.id && a.sequence === b.sequence && a.kind === b.kind && a.actionKind === b.actionKind
   && a.repoId === b.repoId && a.worktreeId === b.worktreeId && a.state === b.state
   && a.createdAt === b.createdAt && a.updatedAt === b.updatedAt;
-export type DisplayActionResult = ActionOperationResult & { refResult?: RefActionResult | null; changeResult?: ChangeActionResult | null };
+export type DisplayActionResult = ActionOperationResult & { refResult?: RefActionResult | null; changeResult?: ChangeActionResult | null; syncResult?: SyncActionResult | null; remoteReadResult?: Pick<RemoteActionOperationResult, 'availability' | 'evidence'> };
+const syncKinds = new Set(['push', 'pull', 'remoteTagPush', 'remoteTagDelete']);
 const localRefKinds = new Set(['branchCreate', 'branchRename', 'branchSwitch', 'branchDelete', 'branchTracking', 'tagCreate', 'tagDelete']);
 export interface OperationsState { outcomes: Record<string, DisplayActionResult>; outcomeErrors: Record<string, AppError>;
   loadOutcome(id: string): Promise<void>;
@@ -67,7 +68,11 @@ export function createOperationsStore(api: Api = call, subscribeToEvents: Subscr
         const streamId = get().snapshot!.streamId;
         const request = { promise: Promise.resolve() };
         request.promise = (async () => {
-          const result = ['stage','unstage','commit'].includes(operation.actionKind ?? '')
+          const result = operation.actionKind === 'readRemoteRefs'
+            ? await api('get_remote_action_outcome', { operationId: id }).then(response => response.ok ? { ok: true as const, value: { operation: response.value.operation, fetch: null, remoteReadResult: { availability: response.value.availability, evidence: response.value.evidence } } } : response).catch(() => ({ ok: false as const, error: transportError() }))
+            : syncKinds.has(operation.actionKind ?? '')
+            ? await api('get_sync_action_outcome',{operationId:id}).then(response=>response.ok?{ok:true as const,value:{operation:response.value.operation,fetch:null,syncResult:response.value.result}}:response).catch(()=>({ok:false as const,error:transportError()}))
+            : ['stage','unstage','commit'].includes(operation.actionKind ?? '')
             ? await api('get_change_action_outcome', { operationId: id }).then(response => response.ok ? { ok: true as const, value: { operation: response.value.operation, fetch: null, changeResult: response.value.result } } : response).catch(() => ({ ok: false as const, error: transportError() }))
             : localRefKinds.has(operation.actionKind ?? '')
             ? await api('get_ref_action_outcome', { operationId: id }).then(response => response.ok ? { ok: true as const, value: { operation: response.value.operation, fetch: null, refResult: response.value.result } } : response).catch(() => ({ ok: false as const, error: transportError() }))

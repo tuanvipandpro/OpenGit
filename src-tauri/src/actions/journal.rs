@@ -54,6 +54,50 @@ pub struct ChangeActionProof {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SyncActionProof {
+    pub remote_name: String,
+    pub role: RemoteEndpointRole,
+    pub config_digest: String,
+    pub source_ref: Option<String>,
+    pub source_oid: Option<String>,
+    pub destination: String,
+    pub preview_oid: Option<String>,
+    pub result: SyncActionResult,
+    pub before_fingerprint: String,
+    pub step_stamps: Vec<Option<String>>,
+}
+impl SyncActionProof {
+    pub(crate) fn effects(&self) -> ActionEffects {
+        if self.result.steps.iter().any(|s| {
+            s.phase == FetchStepPhase::Started
+                || s.phase == FetchStepPhase::Observed && s.effects == ActionEffects::Unknown
+        }) {
+            return ActionEffects::Unknown;
+        }
+        let applied =
+            self.result.steps.iter().any(|s| {
+                s.phase == FetchStepPhase::Observed && s.effects == ActionEffects::Applied
+            });
+        if self
+            .result
+            .steps
+            .iter()
+            .all(|s| s.phase == FetchStepPhase::Observed && s.failure_reason.is_none())
+        {
+            if applied {
+                ActionEffects::Applied
+            } else {
+                ActionEffects::NotApplied
+            }
+        } else if applied || self.result.publication.is_some() {
+            ActionEffects::Partial
+        } else {
+            ActionEffects::NotApplied
+        }
+    }
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ArtifactProof {
     pub root: ArtifactRoot,
     pub kind: ArtifactKind,
@@ -385,6 +429,8 @@ pub struct ActionRecord {
     pub remote_read: Option<RemoteReadProof>,
     #[serde(default)]
     pub change_action: Option<ChangeActionProof>,
+    #[serde(default)]
+    pub sync_action: Option<SyncActionProof>,
     pub phase: WritePhase,
     pub postcondition: Option<String>,
     pub outcome: Option<ActionOutcome>,
@@ -449,6 +495,9 @@ pub(crate) fn write_to(
         {
             return Err(db_error());
         }
+    }
+    if let Some(p) = &r.sync_action {
+        super::sync::validate_proof(p, r.kind)?;
     }
     if let Some(p) = &r.remote_read {
         SafeTargetProof::Remote {

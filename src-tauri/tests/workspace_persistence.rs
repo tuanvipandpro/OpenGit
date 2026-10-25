@@ -202,10 +202,10 @@ async fn schema_zero_one_two_migrations_preserve_ids_and_failed_upgrade_rolls_ba
     let version: i64 = connection
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 5);
+    assert_eq!(version, 6);
     connection
         .execute_batch(
-            "DROP TABLE fetch_observations; DROP TABLE fetch_actions; DROP TABLE repository_actions; DROP TABLE repository_views; DROP TABLE clone_intents; PRAGMA user_version=1;",
+            "DROP TABLE publication_observations; DROP TABLE fetch_observations; DROP TABLE fetch_actions; DROP TABLE repository_actions; DROP TABLE repository_views; DROP TABLE clone_intents; PRAGMA user_version=1;",
         )
         .unwrap();
     drop(connection);

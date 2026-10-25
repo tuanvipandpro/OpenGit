@@ -25,6 +25,8 @@ struct ActionReadAccess {
 }
 #[path = "actions/change_backend.rs"]
 mod change_backend;
+#[path = "actions/sync_backend.rs"]
+mod sync_backend;
 #[cfg(test)]
 #[derive(Default)]
 struct ActionTestHooks {
@@ -927,13 +929,16 @@ impl Backend {
             ActionIntent::Stage { .. }
             | ActionIntent::Unstage { .. }
             | ActionIntent::Commit { amend: false, .. } => {}
+            intent if crate::actions::sync::supported(intent.kind()) => {}
             intent if crate::actions::ref_catalog::supported(intent.kind()) => {}
             _ => return Err(error(ErrorCode::UnsupportedAction, Phase::Validation)),
         }
         tokio::time::timeout(
             std::time::Duration::from_secs(30),
             Box::pin(async {
-                let access = if crate::actions::changes::supported(request.intent.kind()) {
+                let access = if crate::actions::changes::supported(request.intent.kind())
+                    || crate::actions::sync::supported(request.intent.kind())
+                {
                     self.window(window)?;
                     let epoch = self.actions.authority.read_epoch(window, &request.scope)?;
                     let location = self
@@ -1001,6 +1006,7 @@ impl Backend {
         if !matches!(kind, ActionKind::Fetch | ActionKind::ReadRemoteRefs)
             && !crate::actions::ref_catalog::supported(kind)
             && !crate::actions::changes::supported(kind)
+            && !crate::actions::sync::supported(kind)
         {
             return Err(error(ErrorCode::UnsupportedAction, Phase::Validation));
         }
@@ -1044,6 +1050,11 @@ impl Backend {
                         Box::pin(crate::actions::index::execute(context)).await
                     } else if context.intent.kind() == ActionKind::Commit {
                         Box::pin(crate::actions::commit::execute(context)).await
+                    } else if crate::actions::sync::supported(context.intent.kind()) {
+                        Box::pin(crate::actions::sync::execute(
+                            context, database, auth, owner,
+                        ))
+                        .await
                     } else {
                         let proof =
                             crate::actions::journal::read(&database, &context.operation_id)?
@@ -1252,6 +1263,23 @@ impl Backend {
                 return Err(error(ErrorCode::UnsupportedAction, Phase::Validation));
             }
         }
+        if inspect_changes && crate::actions::sync::supported(request.intent.kind()) {
+            let targets = self.actions.authority.resolved_targets(
+                window,
+                &request.scope,
+                epoch,
+                &request.intent,
+                &before.fingerprint,
+            )?;
+            let q = crate::actions::catalog::ReadQuery::new(
+                self.git()?,
+                &location,
+                lifetime.clone(),
+                cancel.clone(),
+            );
+            crate::actions::sync::prepare(&q, &request.intent, &targets, &before.fingerprint)
+                .await?;
+        }
         let after =
             crate::actions::preflight::capture(self.git()?, &location, lifetime, &cancel).await?;
         if before.fingerprint != after.fingerprint {
@@ -1404,6 +1432,15 @@ impl Backend {
                                 registration,
                             ),
                         crate::actions::Gate::Check => Ok(true),
+                        crate::actions::Gate::SyncStep(index, digest) => write_scheduler
+                            .action_sync_step_checked(
+                                &write_id,
+                                index,
+                                std::str::from_utf8(&digest).map_err(|_| {
+                                    error(ErrorCode::InvalidRequest, Phase::Validation)
+                                })?,
+                                registration,
+                            ),
                     }
                 })
         });
@@ -1427,6 +1464,8 @@ impl Backend {
         guard.before_finish = Some(invalidate.clone());
         #[cfg(test)]
         let index_test = self.actions.index_test.clone();
+        #[cfg(test)]
+        let sync_test = self.actions.sync_test.clone();
         let result = self
             .scheduler
             .execute_action_with_invalidation(
@@ -1438,6 +1477,8 @@ impl Backend {
                     let resources = Arc::new(crate::actions::Resources {
                         #[cfg(test)]
                         index_test,
+                        #[cfg(test)]
+                        sync_test,
                         fetch_timeout,
                         pins,
                         serialization,

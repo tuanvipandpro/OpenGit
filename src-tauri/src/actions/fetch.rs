@@ -246,7 +246,7 @@ fn refs_digest(refs: &RefMap) -> Result<String, AppError> {
         &serde_json::to_vec(refs).map_err(|_| malformed())?,
     ))
 }
-fn apply_reported(
+pub(crate) fn apply_reported(
     before: &RefMap,
     reported: &[ReportedRef],
     oid_length: usize,

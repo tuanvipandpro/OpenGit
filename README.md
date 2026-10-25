@@ -4,7 +4,7 @@ Desktop Git client ưu tiên cây commit trực quan, quản lý nhiều branch 
 
 **Trạng thái: đang triển khai 0.3.0.** GitHub `master` giữ baseline0.2.0 `ce5da58`; development ở `codex/0.3.0`. History/diff, commit thuộc nhánh nào, fetch/prune và private HTTPS/SSH đã có kiểm chứng native. UI branch/tag/upstream cũng đã qua source review và luồng Git thực tế.
 
-Changes với stage/unstage theo file và commit đã qua review cùng luồng native, gồm hook từ chối, giữ draft và bảo toàn staged/working edits. Đây là development checkpoint; partial staging/amend, push/pull và stash vẫn phải hoàn tất trong0.3.0. Tiến độ và bằng chứng ở [task007](docs/tasks/007-implement-0.3.0.md), [plan](docs/plans/0.3.0.md) và [acceptance](docs/testing/0.3.0-acceptance.md). Chưa phát hành0.3.0 hoặc installer; kiểm chứng enterprise GCM/OAuth/SSO bên ngoài được theo dõi riêng.
+Changes với stage/unstage theo file và commit đã qua review cùng luồng native, gồm hook từ chối, giữ draft và bảo toàn staged/working edits. Sync có Push, Pull fast-forward và push/xóa tag remote; luồng HTTPS/SSH đã đối chiếu object/ref thực. Push hiển thị ACK có ngày riêng với local tracking: dùng Fetch để cập nhật counts và Local actions để đặt upstream. Đây là development checkpoint; partial staging/amend và stash vẫn phải hoàn tất trong0.3.0. Tiến độ và bằng chứng ở [task007](docs/tasks/007-implement-0.3.0.md), [plan](docs/plans/0.3.0.md) và [acceptance](docs/testing/0.3.0-acceptance.md). Chưa phát hành0.3.0 hoặc installer; enterprise GCM/OAuth/SSO được theo dõi riêng.
 
 ## Phạm vi sản phẩm
 

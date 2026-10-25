@@ -302,3 +302,17 @@ S5-A independent review CHANGES_REQUIRED only S5A-RENAME01/P1: staged renameold�
 ## Checked0.3 development checkpoint
 
 Independent delta reviewer PASS; S5A-RENAME01/P1 CLOSED. Own Backend regression41.88s,5 side/copy unit cases andfailed-native ownership14.96s PASS;35source/copy+9logs matched,32unchanged. No requiredfinding remains in implemented local-actions/S5-A scope. Native oracles for Stage/Unstage/failed-hook draft/successfulcommit and renamepair passed on recorded immutable binaries; screenshots midrefresh do not certify finalcatalogcounts. Root prepares checked development checkpoint commit/push oncodex/0.3.0 with README explicitly marking remaining partial/amend,push/pull,stash andfinalacceptance. No release/tag claim.
+
+## Development checkpoint published
+
+Checked development checkpoint commit7b1709729e41a87775a1d32301a735069eef76fd successfully pushed with upstream to origin/codex/0.3.0. Remote reverified exact7b17097; master/default stays exactce5da58b7f4981b05534c917c08ddcd44c54ca3a. Working tree was clean immediately after push. README explicitly marks remaining features and no release. Root continues one fullstack S4-sync packet (app branch push/FF-pull/remote tags using existing B1) as main Stage→Commit→Push flow. Partial/amend concrete planner packet saved docs/plans/0.3.0-partial-amend.md for afterwards, stash stillrequired. No GitHub PR/tag/release created.
+
+## Sync normal native flow verified; Pull race repair remains
+
+`.tmp/0.3.0-sync-native.log` EXIT0 on immutable DF8AA9F1A5A6586A65782441D0399F746B8A39A4E8ED48EC4EACD0631B1F1325, runtime seal31841206194B8B82DF14054E1B443F9346A18349FD200E6AF902F4881A311DEB. Actual UI Stage/Commit→HTTPS remoteRead/auth→push exact newserverobjects→FFpull exactHEAD/workingfiles→pinnedSSHagentpush exactnewobject/noGUIsecret, closedapp/profile credentialscans PASS. Screenshot `.tmp/desktop-2a27b217c48b4c39b6a342261181cab9/sync-workflow.png`. Pre-repair controlledfixturepositive evidence only; does NOTclose external-branchswitch race.
+
+Grouped Sync review CHANGES_REQUIRED sole SYNC-PULL01/P1: freshstamp sampled AFTER original semanticcheck couldadopt newHEAD and merge otherbranch. Reviewer actualGit oracle/sourceconfirmed; S5 originalindex/commitguard narrowaudit had no samepattern (stampbeforefullbeforeWritecheck). UI98focused/typecheck/diffPASS, frontend17 andbackend19 nohashdrift, nootherrequiredfinding. Owner unseals only P1: freeze stamp beforesemanticrecheck/reuse throughbeforeResume, deterministic pause→external switch→reject beforeFF; preserve knownfetchPartial. No newAPI/framework; no fullSync claim yet.
+
+## Sync checked milestone PASS
+
+Grouped source review PASS, SYNC-PULL01/P1 independently CLOSED with Backend23.94s +normalFF55.05s +cache/migration2PASS28.85s; retains98frontend/typecheck/diff,19source/copy20logs matched. Native currentV2 `.tmp/0.3.0-sync-v2-native.log` EXIT0 on614DBA20884D01B8A72CB9BB89F5F1A4DBED5DBCA633C4CD4F8A418621877DCC: actualStageCommit→HTTPSread/authPush→FFPull→pinnedSSHagentPush→raw annotatedtagPush→remote-only conditionalDelete, exactserverobjects/HEAD/workingbytes+credentialscans PASS. Branch preserved duringtagdelete. Screenshot `.tmp/desktop-653eb94cc8ed4ba9886e96b552531943/sync-workflow.png`. Trackingrefresh/userFetch and unavailableauto-upstream explicitly documented; no release/full0.3 claim. Root prepares nextcheckeddevelopmentcheckpoint, thenpartial/amend. S6consume scope userquestionstillpending; no assumption fromsilence.

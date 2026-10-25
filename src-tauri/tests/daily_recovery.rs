@@ -224,7 +224,7 @@ fn upgrades_zero_through_three_preserve_data_and_action_table_fault_rolls_back()
             assert_eq!(
                 c.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                     .unwrap(),
-                if fail { version } else { 5 }
+                if fail { version } else { 6 }
             );
             if version >= 1 {
                 assert_eq!(

@@ -9,7 +9,7 @@ import { sameActionScope } from './repositorySync';
 export type LocalActionKind = 'branchCreate' | 'branchRename' | 'branchSwitch' | 'branchDelete' | 'branchTracking' | 'tagCreate' | 'tagDelete';
 export type ActionSourceChoice = { kind: 'head' } | { kind: 'ref'; name: string } | { kind: 'selectedCommit' };
 export type LocalActionDraft = { kind: LocalActionKind; source: ActionSourceChoice; name: string; checkout: boolean; upstream: string | null; annotated: boolean; message: string; sign: boolean };
-export type ActionLaunch = { kind?: LocalActionKind; refName?: string; selectedCommit?: boolean };
+export type ActionLaunch = { kind?: LocalActionKind; refName?: string; selectedCommit?: boolean; remoteKind?: import('../contracts').RemoteMutationKind };
 export const localActionTitles: Record<LocalActionKind, string> = { branchCreate: 'Create branch', branchRename: 'Rename branch', branchSwitch: 'Switch branch', branchDelete: 'Delete local branch', branchTracking: 'Set or unset upstream', tagCreate: 'Create tag', tagDelete: 'Delete local tag' };
 const invalid = (message: string): AppError => ({ code: 'InvalidHandle', phase: 'inspection', retry: 'retry', message });
 const sameContext = (a: HistoryContext, b: HistoryContext) => sameActionScope(a.scope, b.scope) && a.snapshotId === b.snapshotId;

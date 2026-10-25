@@ -11,7 +11,9 @@ pub fn reconcile(db: &Database, snapshot: &mut OperationSnapshot) -> Result<(), 
         snapshot.outcome = record.outcome.clone();
         return Ok(());
     }
-    let effects = if let Some(proof) = &record.change_action {
+    let effects = if let Some(proof) = &record.sync_action {
+        proof.effects()
+    } else if let Some(proof) = &record.change_action {
         if matches!(
             proof.phase,
             journal::IndexPhase::Published | journal::IndexPhase::Observed

@@ -206,6 +206,12 @@ use std::io::Write;
 fn main(){{let args=std::env::args_os().skip(1).collect::<Vec<_>>();let mode=std::fs::read_to_string({mode:?}).unwrap();
 let fetch=args.iter().any(|v|v=="fetch");let dry=args.iter().any(|v|v=="--dry-run");
 let read=args.iter().any(|v|v=="ls-remote");
+if args.iter().any(|v|v=="push")&&(mode=="push-lost-ack"||mode=="push-applied-hold"){{
+let output=std::process::Command::new({git:?}).args(&args).output().unwrap();
+if output.status.success(){{let mut marker=std::fs::OpenOptions::new().create(true).append(true).open({fetched:?}).unwrap();marker.write_all(b"pushed\n").unwrap();}}
+if mode=="push-applied-hold"{{std::fs::write({ready:?},b"ready").unwrap();while !std::path::Path::new({release:?}).exists(){{std::thread::sleep(std::time::Duration::from_millis(5));}}}}
+std::process::exit(1);
+}}
 if read{{match mode.as_str(){{
 "remote-auth"=>{{eprintln!("authentication failed CANARY");std::process::exit(128)}},
 "remote-malformed"=>{{print!("bad CANARY");return}},

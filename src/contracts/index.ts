@@ -8,3 +8,4 @@ export * from './daily';
 export * from './ref_actions';
 export * from './remote_actions';
 export * from './changes';
+export * from './sync_actions';

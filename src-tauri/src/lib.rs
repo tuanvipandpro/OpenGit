@@ -39,6 +39,25 @@ mod desktop {
     }
 
     #[tauri::command]
+    fn get_sync_action_outcome(
+        request: GetActionOutcomeRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<SyncActionOperationResult> {
+        result(backend(&app).and_then(|s| s.get_sync_action_outcome(window.label(), request)))
+    }
+    #[tauri::command]
+    async fn get_publication_evidence(
+        request: GetPublicationEvidenceRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<PublicationEvidenceResult> {
+        match backend(&app) {
+            Ok(s) => result(s.get_publication_evidence(window.label(), request).await),
+            Err(e) => ApiResult::Failure(e),
+        }
+    }
+    #[tauri::command]
     async fn get_repository_changes(
         request: GetRepositoryChangesRequest,
         window: WebviewWindow,
@@ -630,6 +649,8 @@ mod desktop {
                 }
             })
             .invoke_handler(tauri::generate_handler![
+                get_sync_action_outcome,
+                get_publication_evidence,
                 get_repository_changes,
                 resolve_change_targets,
                 get_change_diff,

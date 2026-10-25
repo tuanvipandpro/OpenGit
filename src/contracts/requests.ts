@@ -5,7 +5,8 @@ import type { DailyCommandMap } from './daily';
 import type { RefActionCommandMap } from './ref_actions';
 import type { RemoteActionCommandMap } from './remote_actions';
 import type { ChangeCommandMap } from './changes';
-export interface CommandMap extends ChangeCommandMap, RemoteActionCommandMap, HistoryCommandMap, DailyCommandMap, RefActionCommandMap {
+import type { SyncActionCommandMap } from './sync_actions';
+export interface CommandMap extends SyncActionCommandMap, ChangeCommandMap, RemoteActionCommandMap, HistoryCommandMap, DailyCommandMap, RefActionCommandMap {
   get_environment: { request: EmptyRequest; value: Environment };
   get_workspace: { request: EmptyRequest; value: Workspace };
   choose_repository: { request: EmptyRequest; value: Workspace | null };

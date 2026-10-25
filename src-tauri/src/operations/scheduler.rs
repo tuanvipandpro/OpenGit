@@ -735,8 +735,14 @@ impl Scheduler {
         } else {
             crate::actions::journal::read(&self.database, id)
                 .ok()
-                .and_then(|r| r.change_action)
-                .map(|p| p.effects)
+                .and_then(|r| r.sync_action)
+                .map(|p| p.effects())
+                .or_else(|| {
+                    crate::actions::journal::read(&self.database, id)
+                        .ok()
+                        .and_then(|r| r.change_action)
+                        .map(|p| p.effects)
+                })
                 .or_else(|| {
                     crate::actions::journal::read(&self.database, id)
                         .ok()
@@ -804,6 +810,94 @@ impl Scheduler {
         record.change_action = Some(proof);
         record.artifacts = artifacts;
         self.commit_action(&mut inner, snapshot, &record)?;
+        Ok(())
+    }
+    pub(crate) fn action_sync_begin(
+        &self,
+        id: &str,
+        proof: crate::actions::journal::SyncActionProof,
+    ) -> Result<(), AppError> {
+        let mut inner = self.inner.lock().map_err(|_| internal())?;
+        let snapshot = inner.entries.get(id).ok_or_else(invalid)?.snapshot.clone();
+        let mut record = crate::actions::journal::read(&self.database, id)?;
+        if snapshot.state != OperationState::Running
+            || record.phase != crate::actions::journal::WritePhase::Prepared
+            || record.sync_action.is_some()
+        {
+            return Err(invalid());
+        }
+        crate::actions::sync::validate_proof(&proof, record.kind)?;
+        record.sync_action = Some(proof);
+        self.commit_action(&mut inner, snapshot, &record)?;
+        Ok(())
+    }
+    pub(crate) fn action_sync_step_checked(
+        &self,
+        id: &str,
+        index: usize,
+        stamp: &str,
+        validate: impl FnOnce(&rusqlite::Connection) -> Result<(), AppError>,
+    ) -> Result<bool, AppError> {
+        let mut inner = self.inner.lock().map_err(|_| internal())?;
+        let e = inner.entries.get(id).ok_or_else(invalid)?;
+        if e.cancel.is_cancelled()
+            || state::terminal(&e.snapshot.state)
+            || e.snapshot.state == OperationState::Cancelling
+        {
+            return Ok(false);
+        }
+        if e.snapshot.state != OperationState::Running {
+            return Err(invalid());
+        }
+        let snapshot = e.snapshot.clone();
+        let mut record = crate::actions::journal::read(&self.database, id)?;
+        let p = record.sync_action.as_mut().ok_or_else(invalid)?;
+        let step = p.result.steps.get_mut(index).ok_or_else(invalid)?;
+        if step.phase != FetchStepPhase::Pending || stamp.len() != 64 {
+            return Err(invalid());
+        }
+        step.phase = FetchStepPhase::Started;
+        p.step_stamps[index] = Some(stamp.into());
+        record.phase = crate::actions::journal::WritePhase::WriteStarted;
+        self.commit_action_pruning(&mut inner, snapshot, &record, &[], validate)?;
+        Ok(true)
+    }
+    pub(crate) fn action_sync_observed(
+        &self,
+        id: &str,
+        proof: crate::actions::journal::SyncActionProof,
+    ) -> Result<(), AppError> {
+        let mut inner = self.inner.lock().map_err(|_| internal())?;
+        let snapshot = inner.entries.get(id).ok_or_else(invalid)?.snapshot.clone();
+        let mut record = crate::actions::journal::read(&self.database, id)?;
+        let old = record.sync_action.as_ref().ok_or_else(invalid)?;
+        if old.remote_name != proof.remote_name
+            || old.role != proof.role
+            || old.config_digest != proof.config_digest
+            || old.source_ref != proof.source_ref
+            || old.source_oid != proof.source_oid
+            || old.destination != proof.destination
+            || old.preview_oid != proof.preview_oid
+            || old.result.steps.len() != proof.result.steps.len()
+        {
+            return Err(invalid());
+        }
+        let publication = if old.result.publication.is_none() {
+            proof.result.publication.clone()
+        } else {
+            if old.result.publication != proof.result.publication {
+                return Err(invalid());
+            }
+            None
+        };
+        let repo = record.repo_id.clone();
+        record.sync_action = Some(proof);
+        self.commit_action_pruning(&mut inner, snapshot, &record, &[], |c| {
+            if let Some(p) = publication {
+                crate::actions::publication::write_to(c, id, &repo, &p)?;
+            }
+            Ok(())
+        })?;
         Ok(())
     }
     fn commit(
@@ -1456,6 +1550,7 @@ mod action_retention_tests {
             targets: vec![],
             ref_action: None,
             change_action: None,
+            sync_action: None,
             remote_read: None,
             phase: WritePhase::Prepared,
             postcondition: None,
@@ -1617,7 +1712,14 @@ mod action_retention_tests {
         let first = s.enqueue_action(record(temp.path())).unwrap();
         s.finish_action(&first.id, ActionEffects::NotApplied, None, None)
             .unwrap();
-        *clock.lock().unwrap() += chrono::Duration::seconds(901);
+        // Age from the actual terminal observation, not fixture creation: a
+        // slow setup must not consume the one-second retention-boundary margin.
+        *clock.lock().unwrap() = chrono::DateTime::parse_from_rfc3339(
+            &s.get(&first.id).unwrap().outcome.unwrap().observed_at,
+        )
+        .unwrap()
+        .with_timezone(&chrono::Utc)
+            + chrono::Duration::seconds(901);
         let before = s.snapshot().unwrap();
         assert_eq!(
             s.enqueue_action_protected(record(temp.path()), &HashSet::from([first.id.clone()]))

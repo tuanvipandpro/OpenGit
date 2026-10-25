@@ -617,7 +617,7 @@ fn migration_five_preserves_zero_through_four_and_rolls_back_every_new_table_on_
             assert_eq!(
                 c.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                     .unwrap(),
-                if fail { version } else { 5 }
+                if fail { version } else { 6 }
             );
             if version >= 1 {
                 assert_eq!(

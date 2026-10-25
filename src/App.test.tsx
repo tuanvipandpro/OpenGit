@@ -10,6 +10,7 @@ import { createHistoryStore } from './stores/history';
 import { createRepositorySyncStore } from './stores/repositorySync';
 import { createRepositoryActionsStore } from './stores/repositoryActions';
 import { createRepositoryChangesStore } from './stores/repositoryChanges';
+import { createRepositoryTransportStore } from './stores/repositoryTransport';
 import changesWire from '../fixtures/contracts/changes-wire.json';
 import refFixture from '../fixtures/contracts/ref-actions-wire.json';
 import type { Workspace, ToolInfo, Environment } from './contracts';
@@ -37,7 +38,7 @@ function makeServices(failed = false, git?: ToolInfo) {
     if (command === 'get_operations') return { ok: true, value: { streamId: 'stream', sequence: '0', operations: [] } };
     throw Error('Unexpected command');
   }) as unknown as Api;
-  return { changes:createRepositoryChangesStore(api),actions: createRepositoryActionsStore(api), sync: createRepositorySyncStore(api), store: createWorkspaceStore(api, async () => () => {}), history: createHistoryStore(api), tasks: createOperationsStore(api, async () => () => {}), api };
+  return { transport: createRepositoryTransportStore(api), changes:createRepositoryChangesStore(api),actions: createRepositoryActionsStore(api), sync: createRepositorySyncStore(api), store: createWorkspaceStore(api, async () => () => {}), history: createHistoryStore(api), tasks: createOperationsStore(api, async () => () => {}), api };
 }
 it('S5 changes commit form reuses the real interaction lease, keeps its draft through manual refresh, and retires on selection disposal',async()=>{
     vi.useFakeTimers();const services=makeServices(),original=vi.mocked(services.api).getMockImplementation()!;
@@ -496,4 +497,67 @@ it.each(['accepted', 'lost'] as const)('S3-FORM01 releases deferred reads on %s 
     expect(vi.mocked(services.api).mock.calls.filter(([command]) => command === 'execute_repository_action')).toHaveLength(1);
     expect(vi.mocked(services.api).mock.calls.filter(([command]) => command === 'prepare_repository_action')).toHaveLength(1);
   } finally { view.unmount(); vi.useRealTimers(); }
+});
+
+function remoteServices() {
+  const services = makeServices(), original = vi.mocked(services.api).getMockImplementation()!;
+  let operations: import('./contracts').OperationSnapshot[] = [], sequence = 0, lastKind: import('./contracts').ActionKind = 'readRemoteRefs';
+  let captured: import('./contracts').ActionScope | null = null, losePushReply = false;
+  vi.mocked(services.api).mockImplementation((async (command: string, request: Record<string, unknown>) => {
+    if (command === 'get_repository_actions') return { ok: true, value: { scope: request.scope, snapshotId: 'sync', observedAt: '', head: { kind: 'branch', branch: 'main', oid: 'a'.repeat(40) }, branches: [], symbolicBranches: [], remotes: [{ name: 'origin', handle: 'fetch-handle', fetch: 'eligibleProbeRequired' }], sync: { currentBranch: 'refs/heads/main', upstream: 'refs/remotes/origin/main', ahead: '1', behind: '0', completeness: 'complete' } } };
+    if (command === 'get_remote_actions') return { ok: true, value: { scope: request.scope, observedAt: '', remotes: [{ name: 'origin', endpoints: [{ role: 'push', handle: 'push-handle', capability: 'eligible' }, { role: 'fetch', handle: 'fetch-handle', capability: 'eligible' }] }] } };
+    if (command === 'get_publication_evidence') return { ok: true, value: { scope: request.scope, observations: [] } };
+    if (command === 'resolve_ref_action_target') return { ok: true, value: { ...refFixture.resolved, scope: request.scope, catalogId: request.catalogId } };
+    if (command === 'get_operations') return { ok: true, value: { streamId: 'remote-tasks', sequence: String(sequence), operations } };
+    if (command === 'prepare_repository_action') { captured = request.scope as import('./contracts').ActionScope; lastKind = (request.intent as import('./contracts').ActionIntent).kind; return { ok: true, value: { scope: captured, kind: lastKind, planId: lastKind, expiresAt: '2099-01-01', warnings: [] } }; }
+    if (command === 'execute_repository_action') {
+      if (lastKind === 'push' && losePushReply) return { ok: false, error: { code: 'Internal', phase: 'transfer', retry: 'none', message: 'Push reply unavailable.' } };
+      const value: import('./contracts').OperationSnapshot = { ...refFixture.result.operation as import('./contracts').OperationSnapshot, id: lastKind, sequence: String(++sequence), actionKind: lastKind, state: 'Queued', repoId: captured!.repoId, worktreeId: captured!.worktreeId, error: null, authPrompt: null, outcome: undefined };
+      operations = [...operations.filter(operation => operation.id !== value.id), value]; return { ok: true, value };
+    }
+    if (command === 'get_remote_action_outcome') return { ok: true, value: { operation: operations.find(operation => operation.id === request.operationId), availability: 'available', evidence: { remoteName: 'origin', role: 'push', phase: 'observed', refCount: '1', observedAt: '2026-10-25', noGitWrites: true }, snapshot: { capturedScope: captured, snapshotId: 'read-observation', remoteName: 'origin', role: 'push', observedAt: '2026-10-25', expiresAt: '2099-01-01', objectFormat: 'sha1', refs: [{ entryId: 'destination-main', name: 'refs/heads/main', oid: 'a'.repeat(40) }] } } };
+    if (command === 'resolve_remote_target') return { ok: true, value: { scope: request.scope, snapshotId: request.snapshotId, handle: 'observed-main', namespace: 'branch', name: 'refs/heads/main', expectedOid: 'a'.repeat(40) } };
+    return original(command as never, request as never);
+  }) as Api);
+  const readState = async (state: 'WaitingForUser' | 'Succeeded') => {
+    operations = operations.map(operation => operation.id !== 'readRemoteRefs' ? operation : { ...operation, state, sequence: String(++sequence), authPrompt: state === 'WaitingForUser' ? { promptHandle: 'read-prompt', kind: 'password', message: 'Fixture authentication required.', expiresAt: '2099-01-01' } : null, outcome: state === 'Succeeded' ? { effects: 'notApplied', recovery: 'none', cancellationRequested: false, repositoryChanged: false, observedAt: '2026-10-25' } : undefined });
+    await services.tasks.getState().sync();
+  };
+  return { ...services, readState, loseReply: () => { losePushReply = true; } };
+}
+it.each(['accepted', 'lost'] as const)('Sync App uses authenticated read Tasks and keeps its lease through %s push response without retries', async reply => {
+  vi.useFakeTimers(); const services = remoteServices(), view = render(<StrictMode><App {...services} /></StrictMode>);
+  try {
+    await act(async () => services.store.getState().open()); await act(async () => {});
+    const begin = vi.spyOn(services.store.getState(), 'beginInteraction');
+    fireEvent.click(screen.getByRole('button', { name: 'Push…' })); fireEvent.click(screen.getByRole('button', { name: 'Push…' })); await act(async () => {});
+    expect(begin).toHaveBeenCalledOnce(); expect(screen.getByRole('dialog', { name: 'Remote synchronization' })).toBeInTheDocument();
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Read remote references' })));
+    await act(async () => services.readState('WaitingForUser'));
+    expect(screen.getByRole('dialog', { name: 'Repository authentication' })).toBeInTheDocument(); expect(screen.getByRole('button', { name: 'Prepare' })).toBeDisabled();
+    const reads = () => vi.mocked(services.api).mock.calls.filter(([command]) => command === 'inspect_repository').length, before = reads();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); window.dispatchEvent(new Event('focus')); }); expect(reads()).toBe(before);
+    await act(async () => services.readState('Succeeded'));
+    expect(screen.queryByRole('dialog', { name: 'Repository authentication' })).not.toBeInTheDocument(); expect(screen.getByLabelText('Destination')).toHaveValue('ref:refs/heads/main');
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Prepare' })));
+    expect(screen.getByRole('region', { name: 'Remote action preview' })).toBeInTheDocument(); if (reply === 'lost') services.loseReply();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Execute' })); fireEvent.click(screen.getByRole('button', { name: 'Execute' })); });
+    if (reply === 'lost') { expect(screen.getByRole('dialog', { name: 'Remote synchronization' })).toBeInTheDocument(); expect(screen.getByText(/Execution reply was not confirmed/)).toBeInTheDocument(); fireEvent.click(screen.getByRole('button', { name: 'Close' })); await act(async () => {}); }
+    expect(screen.queryByRole('dialog', { name: 'Remote synchronization' })).not.toBeInTheDocument(); expect(reads()).toBe(before + 1);
+    expect(vi.mocked(services.api).mock.calls.filter(([command]) => command === 'execute_repository_action')).toHaveLength(2);
+  } finally { view.unmount(); vi.useRealTimers(); }
+});
+it('Sync App keeps source/remote/name across manual refresh, drops destination authority and retires on forget', async () => {
+  const services = remoteServices(), view = render(<App {...services} />);
+  try {
+    await act(async () => services.store.getState().open()); await act(async () => {});
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Push…' })));
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Read remote references' }))); await act(async () => services.readState('Succeeded'));
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Prepare' })));
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Refresh context' })));
+    expect(screen.getByRole('dialog', { name: 'Remote synchronization' })).toBeInTheDocument(); expect(screen.getByLabelText('Source branch')).toHaveValue('refs/heads/main'); expect(screen.getByLabelText('Remote')).toHaveValue('origin');
+    expect(services.transport.getState().snapshot).toBeNull(); expect(screen.getByRole('button', { name: 'Execute' })).toBeDisabled(); expect(screen.getByRole('button', { name: 'Prepare' })).toBeDisabled();
+    await act(async () => services.store.getState().forget(services.store.getState().workspace!.activeSelection!.repoId));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument(); expect(services.transport.getState().scope).toBeNull();
+  } finally { view.unmount(); }
 });

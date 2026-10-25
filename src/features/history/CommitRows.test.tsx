@@ -53,6 +53,10 @@ it('S7 dispatches the exact qualified same-commit ref action and preserves filte
   expect(screen.queryByRole('menuitem', { name: 'Switch branch' })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('menuitem', { name: 'Delete local tag' }));
   expect(props.onAction).toHaveBeenLastCalledWith({ kind: 'tagDelete', refName: 'refs/tags/v1' }); expect(tag).toHaveFocus();
+  fireEvent.click(tag); fireEvent.click(screen.getByRole('menuitem', { name: 'Push tag to remote' }));
+  expect(props.onAction).toHaveBeenLastCalledWith({ remoteKind: 'remoteTagPush', refName: 'refs/tags/v1' });
+  fireEvent.click(tag); fireEvent.click(screen.getByRole('menuitem', { name: 'Delete remote tag' }));
+  expect(props.onAction).toHaveBeenLastCalledWith({ remoteKind: 'remoteTagDelete', refName: 'refs/tags/v1' });
   const branch = screen.getByRole('button', { name: 'Actions for refs/heads/main' }); fireEvent.click(branch);
   fireEvent.click(screen.getByRole('menuitem', { name: 'Set or unset upstream' }));
   expect(props.onAction).toHaveBeenLastCalledWith({ kind: 'branchTracking', refName: 'refs/heads/main' });

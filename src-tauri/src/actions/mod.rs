@@ -6,9 +6,11 @@ pub(crate) mod fetch;
 pub mod journal;
 pub(crate) mod observations;
 pub mod preflight;
+pub(crate) mod publication;
 pub mod recovery;
 pub(crate) mod ref_catalog;
 pub(crate) mod remote;
+pub(crate) mod sync;
 use crate::{
     domain::contracts::*,
     git::{
@@ -28,6 +30,8 @@ use std::{
 pub struct Actions {
     #[cfg(test)]
     pub(crate) index_test: Arc<index::TestHooks>,
+    #[cfg(test)]
+    pub(crate) sync_test: Arc<sync::TestHooks>,
     pub authority: authority::Authority,
     pub(crate) ref_catalogs: ref_catalog::Catalogs,
     pub(crate) change_catalogs: ref_catalog::Catalogs,
@@ -41,6 +45,8 @@ impl Default for Actions {
         Self {
             #[cfg(test)]
             index_test: Default::default(),
+            #[cfg(test)]
+            sync_test: Default::default(),
             authority: Default::default(),
             ref_catalogs: Default::default(),
             change_catalogs: Default::default(),
@@ -85,6 +91,8 @@ impl Actions {
 pub struct Resources {
     #[cfg(test)]
     pub(crate) index_test: Arc<index::TestHooks>,
+    #[cfg(test)]
+    pub(crate) sync_test: Arc<sync::TestHooks>,
     pub(crate) fetch_timeout: std::time::Duration,
     pub pins: Arc<preflight::Pins>,
     pub serialization: Arc<crate::operations::scheduler::SerializationLease>,
@@ -134,6 +142,7 @@ pub(crate) enum Gate {
     Write,
     FetchStep(usize, [u8; 64]),
     RefStep(usize, [u8; 64]),
+    SyncStep(usize, [u8; 64]),
 }
 /// The executor must use this pure lease for every owned process. Unknown BQ
 /// shutdown retains directory pins and resource slot, never the user intent/DB.
@@ -152,6 +161,10 @@ pub struct ActionContext {
     validate: Arc<dyn Fn(Gate) -> Result<bool, AppError> + Send + Sync>,
 }
 impl ActionContext {
+    pub(crate) fn sync_observed(&self, proof: journal::SyncActionProof) -> Result<(), AppError> {
+        self.scheduler
+            .action_sync_observed(&self.operation_id, proof)
+    }
     pub(crate) fn before_remote_read(&self, role: RemoteEndpointRole) -> Result<bool, AppError> {
         (self.validate)(Gate::ReadStart(role))
     }

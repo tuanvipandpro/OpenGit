@@ -1,10 +1,10 @@
 use rusqlite::Connection;
 pub fn migrate(connection: &mut Connection) -> rusqlite::Result<()> {
     let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    if !(0..=5).contains(&version) {
+    if !(0..=6).contains(&version) {
         return Err(rusqlite::Error::InvalidQuery);
     }
-    if version == 5 {
+    if version == 6 {
         return Ok(());
     }
     let transaction = connection.transaction()?;
@@ -28,8 +28,13 @@ pub fn migrate(connection: &mut Connection) -> rusqlite::Result<()> {
         transaction.execute_batch(include_str!("../../migrations/0004_repository_actions.sql"))?;
         transaction.pragma_update(None, "user_version", 4)?;
     }
-    transaction.execute_batch(include_str!("../../migrations/0005_fetch_observations.sql"))?;
-    transaction.pragma_update(None, "user_version", 5)?;
+    if version < 5 {
+        transaction.execute_batch(include_str!("../../migrations/0005_fetch_observations.sql"))?;
+    }
+    transaction.execute_batch(include_str!(
+        "../../migrations/0006_publication_observations.sql"
+    ))?;
+    transaction.pragma_update(None, "user_version", 6)?;
     transaction.commit()?;
     Ok(())
 }

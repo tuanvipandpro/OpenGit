@@ -23,3 +23,13 @@
 .change-diff pre { overflow: auto; max-height: 480px; font: 12px/1.6 Consolas, monospace; white-space: pre; }
 .commit-form textarea { display: block; width: 100%; box-sizing: border-box; resize: vertical; }
 .changes-workspace .dialog { width: min(640px, 90vw); max-height: 85vh; overflow: auto; }
+.remote-action-dialog select, .remote-action-dialog input:not([type="checkbox"]) { display: block; width: 100%; box-sizing: border-box; }
+.remote-action-dialog .modal-content { overflow-wrap: anywhere; }
+.publication-evidence { overflow-wrap: anywhere; }
+
+.remote-action-dialog { width: min(680px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; }
+.remote-action-dialog label { display: block; margin: 12px 0; font-size: 12px; }
+.remote-action-dialog select, .remote-action-dialog input:not([type="checkbox"]) { margin-top: 6px; padding: 8px; border: 1px solid #354858; border-radius: 4px; background: #111a24; color: inherit; }
+.remote-action-dialog .dialog-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+.remote-action-dialog button { padding: 7px 12px; border: 1px solid #354858; border-radius: 4px; background: #1a2a37; color: inherit; }
+.remote-action-dialog button:disabled { opacity: .5; }

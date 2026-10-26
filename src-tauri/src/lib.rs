@@ -39,6 +39,47 @@ mod desktop {
     }
 
     #[tauri::command]
+    async fn get_repository_stashes(
+        request: GetRepositoryStashesRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<RepositoryStashes> {
+        match backend(&app) {
+            Ok(s) => result(s.get_repository_stashes(window.label(), request).await),
+            Err(e) => ApiResult::Failure(e),
+        }
+    }
+    #[tauri::command]
+    async fn resolve_stash_target(
+        request: ResolveStashTargetRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<ResolvedStashTarget> {
+        match backend(&app) {
+            Ok(s) => result(s.resolve_stash_target(window.label(), request).await),
+            Err(e) => ApiResult::Failure(e),
+        }
+    }
+    #[tauri::command]
+    fn get_stash_action_outcome(
+        request: GetStashActionOutcomeRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<StashActionOperationResult> {
+        result(backend(&app).and_then(|s| s.get_stash_action_outcome(window.label(), request)))
+    }
+    #[tauri::command]
+    async fn reconcile_stash_action(
+        request: ReconcileStashActionRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<StashActionOperationResult> {
+        match backend(&app) {
+            Ok(s) => result(s.reconcile_stash_action(window.label(), request).await),
+            Err(e) => ApiResult::Failure(e),
+        }
+    }
+    #[tauri::command]
     fn get_sync_action_outcome(
         request: GetActionOutcomeRequest,
         window: WebviewWindow,
@@ -660,6 +701,10 @@ mod desktop {
                 }
             })
             .invoke_handler(tauri::generate_handler![
+                get_repository_stashes,
+                resolve_stash_target,
+                get_stash_action_outcome,
+                reconcile_stash_action,
                 resolve_change_selection,
                 get_sync_action_outcome,
                 get_publication_evidence,

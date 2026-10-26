@@ -2,7 +2,7 @@
 
 ## Intake
 
-- Status: baseline0.2.0 is published on GitHub master. Containment/fetch/private transport, local branch/tag/upstream, whole-file and partial stage/commit/amend and Sync push/FF-pull/remote tags have independently reviewed native milestones. Latest published development checkpoint02407a0 precedes the checked S5-B slice awaiting checkpoint. Stash Save/Apply and final integrated acceptance remain. User requested faster usable slices and version-branch push after checks.
+- Status: DONE — Windows implementation accepted by independent Gate3 for AC1–AC8 and the user-approved Save/Apply scope. Current code/native/production checks PASS; authorized final Git handoff is codex/0.3.0, with master kept at baseline0.2.0 ce5da58. No tag/installer/public release or later-version implementation is included.
 - Preceding accepted requirement: selecting a commit must show local/remote branches that contain it, current branch/upstream inclusion and truthful remote publication evidence with fetch freshness. Tip decorations are not containment. No observed remote branch is not proof of never pushed; shallow/incomplete ancestry and failed fetch can mean unknown.
 - Authorized baseline checkpoint: `ce5da58`, `feat: checkpoint OpenGit 0.2.0 graph and repository views`, author tuanvipandpro <tuanvipandpro@gmail.com>. Later explicitly pushed as remote master/default at the user's request; subsequent work branch `codex/0.3.0`. No tag/release.
 - Baseline VERSION0.2.0; current planned target/manifests0.3.0, minor feature increment synchronized by shared owner. Planned target is not release evidence.
@@ -16,14 +16,14 @@
 
 | ID | Observable outcome | Required evidence | State |
 | --- | --- | --- | --- |
-| AC1 | Selected commit lists local/remote containing branches independent of visible graph/filter/page, current/upstream inclusion and precise known/unknown remote state | Actual Git ancestry/remote/shallow fixtures plus UI races | VERIFIED milestone; final integration retained |
-| AC2 | Explicit fetch one/all remotes, opt-in prune, truthful completion/failure and freshness evidence scoped to relevant remote | Owned authenticated/local remotes; partial failure/cancel/external changes | VERIFIED milestone; final integration retained |
-| AC3 | Create/rename/switch/delete branches and tracking safely, create lightweight/annotated tags and explicit local/remote actions | Disposable repositories, dirty state/linked worktrees/invalid refs/stale preconditions | VERIFIED milestone; final integration retained |
-| AC4 | Stage/unstage file, eligible hunk/line operations and commit/amend with hook/signing errors visible; no lost unrelated work | Actual index/worktree fixtures including partial staging/binary/unusual paths/failures | A and B VERIFIED milestones; retain impacted S6/final integration |
-| AC5 | Stash Save/Apply and external resolve → stage → reconcile, with accurate state and retained stash/recovery evidence; Pop/Drop deferred by explicit user decision to0.4.0 | Clean/conflicting/interrupted disposable fixtures and restart | PENDING revised scope |
-| AC6 | Push/upstream/ahead-behind and fast-forward-only pull, divergence/rejection shown without silently choosing strategy | Owned remote roundtrip, rejected push/divergence/auth/cancel/restart | VERIFIED Sync milestone; tracking requires explicit Fetch and upstream remains explicit Local action |
-| AC7 | Typed backend-issued authority, validated refs/raw paths, serialized shared-Git writes, external-operation preflight, journal and bounded process cleanup | Independent critical-path review and deterministic failure/concurrency tests | PENDING |
-| AC8 | Graph-centric discoverable controls, existing filter/selection/diff/refresh retained, integrated version checks/build/native production and docs | Frontend/core/native/regression plus final independent PASS | PENDING |
+| AC1 | Selected commit lists local/remote containing branches independent of visible graph/filter/page, current/upstream inclusion and precise known/unknown remote state | Actual Git ancestry/remote/shallow fixtures plus UI races | PASS Gate3 |
+| AC2 | Explicit fetch one/all remotes, opt-in prune, truthful completion/failure and freshness evidence scoped to relevant remote | Owned authenticated/local remotes; partial failure/cancel/external changes | PASS Gate3 |
+| AC3 | Create/rename/switch/delete branches and tracking safely, create lightweight/annotated tags and explicit local/remote actions | Disposable repositories, dirty state/linked worktrees/invalid refs/stale preconditions | PASS Gate3 |
+| AC4 | Stage/unstage file, eligible hunk/line operations and commit/amend with hook/signing errors visible; no lost unrelated work | Actual index/worktree fixtures including partial staging/binary/unusual paths/failures | PASS Gate3 |
+| AC5 | Stash Save/Apply and external resolve → stage → reconcile, with accurate state and retained stash/recovery evidence; Pop/Drop deferred by explicit user decision to0.4.0 | Clean/conflicting/interrupted disposable fixtures and restart | PASS Gate3 |
+| AC6 | Push/upstream/ahead-behind and fast-forward-only pull, divergence/rejection shown without silently choosing strategy | Owned remote roundtrip, rejected push/divergence/auth/cancel/restart | PASS Gate3 |
+| AC7 | Typed backend-issued authority, validated refs/raw paths, serialized shared-Git writes, external-operation preflight, journal and bounded process cleanup | Independent critical-path review and deterministic failure/concurrency tests | PASS Gate3 |
+| AC8 | Graph-centric discoverable controls, existing filter/selection/diff/refresh retained, integrated version checks/build/native production and docs | Frontend/core/native/regression plus final independent PASS | PASS Gate3 |
 
 ## Planning / ownership
 
@@ -42,7 +42,7 @@ v020_planner (Sol/high) returned nine executable packets recorded in docs/plans/
 
 S1 assigned reused v020_backend (worker_complex Sol/high), sole shared source/contracts/manifests owner. Scope authority/generic Scheduler outcomes/owner-window cancel-auth-close/schema4/reconciliation/scope leases/version sync only. No future command exposure, S2 fetch, UI, history algorithm, BQ owned_job or dependency changes. Root owns docs/task/e2e and independently checks writable fixture capability while backend works. Selected impacted checks before Gate1, full unchanged slow matrices deferred to appropriate integrated gate rather than gratuitous repetition. First author handoff/source freeze and independent Gate1 pending.
 
-## Handoff
+## Initial handoff (historical)
 
 0.2 checkpoint committed;0.3 work started. Not complete.
 
@@ -412,3 +412,224 @@ it is midrefresh and does not certify final fresh catalog counts. Earlier two
 failed logs are retained; no false native success before repair. Root prepares
 checked B development commit/push, then releases existing S6 integration. This
 PASS covers B only, not S6/full0.3/release. Runtime usage/cost unknown.
+
+## S5-B checkpoint pushed; S6 integration released
+
+Commit76496fc3391039cb7679a2092bf3797d3a4e51cd,
+`feat: add partial staging and guarded commit amend`, pushed successfully to
+origin/codex/0.3.0 and exact remote SHA reverified. Remote master/default stays
+ce5da58b7f4981b05534c917c08ddcd44c54ca3a. Only reviewed B+scope/docs were
+staged; unfinished S6 files remained outside that commit. Existing compiled/
+shared S6 integration is now released to backend_lifecycle_fix Sol/high per
+the accepted Save/Apply packet. Shared TS/DTO must freeze before optional
+normal UI parallel handoff. Root owns native/docs, no Pop/Drop or release added.
+
+S6 API frozen after typecheck: src/contracts/stash.ts and matching domain/stash.rs;
+get_repository_stashes, lazy resolve_stash_target, get_stash_action_outcome and
+scope-bound reconcile_stash_action. Retention uses present|absent|unknown,
+avoiding an unknown→false absence claim. Backend owner keeps sharedcontracts/
+wire/tests. Root dispatched reused local_actions_ui Sol/medium for new stash
+store/dialog, App/Tasks outcome+reconcile, narrow Changes conflict UX and tests/
+CSS. Backend Sol/high continues Save/Apply/pin/proof/conflict/index tests in
+parallel, max2agents with disjoint writers. This overlaps independent UI work
+with native/backend tests and reuses prior lease/authority context. Root authored
+proposed tests/e2e/stash_acceptance.py; Python+embeddedJS syntax PASS only,
+native not yet run. No extra framework/schema/dependency or later Pop/Drop.
+
+Root extended existing tests/e2e/production_acceptance.py for final no-e2e
+production launch: persisted workspace, original two-size Overview layout,
+actual graph pixels/selected-commit containment, eligible structured Changes
+and Stash manager controls. Existing seed executable only establishes registry;
+production binary must not contain chooser seam. Fixture LF is explicit so
+the intended eligible diff is not accidentally CRLF-only fallback. Python and
+embeddedJS syntax checked, **not run yet** and no production acceptance claimed.
+
+S6 compile/all-target check and3pure identity/raw-parent/collision tests passed.
+First actual daily_stash pair aborted before assertions with Windows test-thread
+stack overflow; owner uses the existing test-only boxed-async fixture pattern,
+not production stack/guard changes. Results pending, not a Git oracle PASS.
+Backend agent then hit runtime "Selected model is at capacity"; root issued
+one same-context retry without resetting files or repeating planning. No model
+switch or successful continuation is inferred from dispatch alone. UI remains
+active with frozen contracts; fallback will be recorded if needed.
+
+Same-context retry also failed capacity. Root read worker_complex TOML and used
+documented explicit-dispatch fallback: new stash_backend_fallback requested
+supported gpt-6-sol/high with fresh self-contained packet, no fixed namedrole
+override, no Astra escalation or hot-switch claim. Tool accepted spawn; runtime
+model metadata beyond requested settings is unavailable. Old backend is terminal;
+sole backend/shared-contract ownership transfers to fallback, UI ownership stays
+local_actions_ui, at most2active agents. No reset or repeated research.
+
+Actual boxed rerun .tmp/s6-stash-actual-boxed02.log ALSO stack-overflowed before
+assertions. Two same-issue attempts reached reassess threshold: new owner must
+diagnose callgraph/frame/future construction and production executor relevance,
+not blindly repeat Box::pin or raise stacks/relax guards. These remain failed
+checks, not application success. Existing source/pure/compile evidence retained.
+
+S6 frontend READY_FOR_REVIEW, source14files frozen in
+.tmp/s6-ui-source-freeze.json SHA12C332C6456E0E2F041F82116AE737D370456A4E46592BC6EA6DCFA7F7945971.
+Author typecheck/build960modules/diff PASS,99focusedtests/eightfiles plus
+AppS6three andAppS5three PASS. Root whole frontend pnpm test EXIT0:
+429tests/48files43.82s, .tmp/0.3.0-s6-full-frontend.log. Retain this full result
+unless later changes/failures justify repetition. Shared Modal uses native
+dialog[open], not explicitroleattribute; root native selectors adapted, syntax
+rechecked. Backend actual/fault/recovery and independent review/native remain
+required; no S6 completion claim from frontend checks alone.
+
+Fallback owner reassessed stack evidence: normal desktop token reaches catalog,
+prepare/enqueue and queued executor; default-stack overflow occurs in nested
+stash prepare/save_snapshot polling after native stamp. Measured future sizes
+~50,120B run_action/~42,568B stash/~19,792B prepare, no recursion observed.
+An8MiB **diagnostic-only** test stack allows Save to finish, then reveals LF/CRLF
+fixture expectation mismatch; neither is acceptance. Owner must fix async poll
+boundary and rerun default stack, remove diagnostics, set only owned fixture
+core.autocrlf=false for intended LF oracles. Production/test stack increases or
+guard weakening are not the solution. Actual Tauri native/recovery still pending.
+
+Fallback default-stack positive: SHA1/files staged/working Save-u +Apply test
+PASS61.60s after async-boundary work and fixture-local LF configuration. Long
+SHA256/reftable conflict test still stack-overflows during its first Save;
+no conflict/Stage/Reconcile PASS yet. Root flagged any dedicated child Tokio task
+as a critical cancellation/quiescence/lease/journal invariant: no detached writer
+or early serialization release if parent drops. Owner must prefer minimal
+boxing where possible and prove actual abort/cancel/recovery if a new task
+boundary remains. Difference between two test-body shapes is investigated,
+not attributed to ref/object format without evidence. No S6 source freeze yet.
+
+S6 provisional production checkpoint: normal-stack multithread Tokio core2/2
+PASS75.23s (Save-u/Apply retained/no staged partition; SHA256/reftable conflict
+withoutMERGE_HEAD, Stage one preserves other stages, Commit blocked, external
+resolution +read-only Reconcile). No debug strings remain. Separate worker
+diagnostic without inner task still overflowed, establishing production poll
+relevance beyond outer test frame. Current dedicated child has StashChildAbort
+drop guard/resources lease; abort/quiescence/fault/restart proofs remain required.
+
+Root froze33source paths in .tmp/s6-provisional-source.json
+SHAE591E18C79FEEDF381C2708A35250C34FA92E5E34AB513BC5A48E28E388FC245,
+built/copied debug/e2e immutable67F34D6B4D6DAA759781EE0F7DDE7149D7EB0F24EADFE738CC4DA6115758BCAA
+(.tmp/s6-native-artifact.json). Native stash_acceptance is running on copy,
+not yet PASS. Reviewer starts the same grouped source/UI review while owner
+authors/runs disjoint daily_stash failure tests; production/contracts frozen,
+any required repair must notify root and be reviewed against updated snapshot.
+Cargo released to author after copy. Native, all failure checks and independent
+review are still required; this overlaps work without creating an extra gate.
+
+## S6 review repairs and native readiness diagnosis
+
+Native first .tmp/0.3.0-stash-native.log failed before manager/Save with WebDriver
+disconnect; no actual stash operation. Do not equate disconnect with stack crash.
+Windows matching crash events were absent. Two read-only probes held a query-only
+handle to the exact owned app before click: exit status0x103 STILL_ACTIVE before
+cleanup. In .tmp/s6-catalog-native-readiness-probe.log the second explicit click
+after published History opened the manager; no Save/Prepare/Execute. IPC tape was
+empty even when manager opened, so interception is inconclusive. No catalog task
+boundary was added from this inference. Old provisional snapshot is historical.
+
+Required review findings (not independently closed yet):
+
+- S6-SAVE01/P1: Git default stash can overwrite recreated untracked/ignored data
+  at HEAD-minus-index paths. Owner adds before-write physical same/prefix/case
+  protection; actual default/-u/directory-prefix preservation regression PASS.
+- S6-RECONCILE01/P2: historical operationId must not authorize adopting old read
+  generation after close/reopen. Exact read_epoch/existing-scope repair and
+  gen9→freshgen1 grant/unused-plan preservation +current read-only reconcile
+  actual regression PASS47.31s. Independent disposition pending.
+- S6-CHILD01/P1: parent timeout/drop must cancel shared child token before abort,
+  prevent late native resume/false NotApplied and retain BQ resources. Shared
+  cancel guard authored; deterministic active timeout/drop proof pending.
+- S6-READY01/P2: early Stash click could silently fail interaction acquisition.
+  Root owns App/App.test repair only: subscribe to published history, disable
+  until current scope ready, visible unavailable-interaction alert, preserve
+  readiness/urgent refresh. Typecheck and whole App32tests PASS; native/review
+  pending. Other47 frontend file results retained from429 full suite.
+- S6-APPLY01/P1: late ignored collision and tracked changes were adopted by
+  stamps captured after collision check. Freeze affected-path stamps before
+  semantic check, add only missing paths and retain original tracked stamps;
+  owner authors deterministic late ignored-path regression. B2 build held until
+  focused proof so root does not test an avoidably stale snapshot.
+
+Backend owner may repair required paths, notify root of production deltas and
+seal updated source. Reviewer keeps the same grouped review; no source findings
+are self-closed. Remaining DB/cancel/restart/foreign ownership/new edit checks,
+full native and no-e2e production acceptance remain required. No S6 push yet.
+
+S6 current repairs/evidence: owner reports full daily_stash12PASS131.26s on
+normal stacks, plus active-poll parent-timeout child guard unit0.06s, held Backend
+prewrite cancellation15.50s, actual DB reopen/new edit/foreign ref29.08s.
+Default-stack/fault evidence remains subject to independent review. Source
+READ epoch Reconcile rejects stale generation; Root UI now publishes a current
+read-only stash catalog before that exact-epoch RPC, checks scope echo/current
+scope/stream/opversion before and after, discards runtime catalog. Whole App+Ops
+51tests/typecheck PASS in .tmp/s6-reconcile-ui-publication.log. Object-presence
+wording clarifies duplicates; Task label5tests PASS .tmp/s6-retention-label.log.
+
+B2 native .tmp/0.3.0-stash-native-b2.log reached manager/Save form (readiness
+fixed) but Prepare returned UnsupportedAction, no operation enqueued. Actual
+backend mode120000 regression confirms inherited R2 fixture link.txt is outside
+regular-only stash support; catalog previously overadvertised availability.
+Owner corrected Save/Apply capabilities and actionable regular-file guidance;
+focused mode test PASS8.47s. Root removes only that unrelated logical symlink
+from disposable S6 native fixture, keeping separate unsupported-shape evidence;
+no symlink support claimed or guard relaxed.
+
+Conservative external-stack mutation behavior accepted independently: initial
+plan's success-after-entry-removal promise is explicitly SUPERSEDED in S6 plan.
+Actual negative oracle48.67s preserves exact recovery OID/pin, working/index/HEAD
+and externally emptied stack; reports absent/present and does not Apply/retarget.
+Keep original success-expecting failure as NOT_PASS for that superseded claim.
+No semantic-ref framework/guard relaxation, normal Save/Apply scope unchanged.
+Final backend integrated checks/seal, native supported flow and production remain.
+
+## Final Gate3 and handoff
+
+Independent local_slice_review returned **PASS — Gate3** for all AC1–AC8 on
+Windows and the agreed Save/Apply scope. All required S6 findings independently
+CLOSED: SAVE01, APPLY01, RECONCILE01, CHILD01, READY01, PIN01, RECONCILE02.
+No required finding or implementation work remains in0.3.0. Earlier milestones
+and findings retain their own evidence boundaries;0.1 EXT-01, installer/tag/
+public release and0.4+ remain outside this acceptance.
+
+Final frozen40files `.tmp/s6-b5-source.json` SHA256
+ECF3779F2B3CB9F635CAAD9A6127C6B420A999CC75D083D05995E87BA3857A0C,
+40/40zero drift. Native S6 B5 `.tmp/0.3.0-stash-native-b5.log` EXIT0 SHA256
+496D8B215A72CDDA2F0F1CFE3F718BB478D34BBF6D7253FF177A64DDFB221D6C,
+binary225AA8209225E4E963B6C980F6308916A42405EF93D24E518ED1613810CF7F53.
+Full Save/Apply/retained data/conflict/two separate Stage/Reconcile workflow
+passed actual UI+Git oracles, metadata/no-extra-job and message profile scans.
+S6 native fixture uses regular files with owned DAG/remotes; unsupported
+symlink index has separate actual negative capability/error proof.
+
+No-e2e production build/native PASS: executable
+src-tauri/target/release/opengit.exe SHA256
+7E3A5E054E092EA520CE95FAC2EFB45DF72A6DBDF4FEA787EC5886C1A8C44A0B;
+`.tmp/0.3.0-final-production-native.log` EXIT0 SHA256
+900F195D510B94094D34494F52B35AE10BE953240C47FA65CC804F5A5E0EEB96.
+Chooser seam absent, persisted workspace/native bridge restored, invalid-input
+rejection,1280x820/960x640 layouts, actual graph pixels/commit context, structured
+Changes and Stash manager verified. Root viewed screenshots; layout screenshots
+during initial Sync do not certify remote freshness.
+
+Checks: full frontend435/49 PASS before final Reconcile interaction delta;
+whole current App/Operations53 +typecheck PASS after it, plus current native.
+No full437 rerun is claimed. Previous high-concurrency frontend timeout and
+native fixture/readiness failures remain historical failed evidence. Bounded
+workers2 pass did not increase frontend test timeouts. Rust wire2/TS wire,
+default and no-default clippy all-targets with warnings denied, formatter,
+version0.3 consistency and diff checks PASS. Backend12matrix, scoped BQ/authority/
+recovery/index, corrected active-poll counterfactual, exact tracked-add old RED/
+restored GREEN, pin replacement/no-proof and documented synthetic restart states
+were independently reviewed. Reviewer additionally ran5critical backend cases,
+CHILD unit and tracked-add regression54.66s plus current App/Operations53.
+
+Persistent author evidence `.tmp/s6-final-backend-handoff.md` SHA256
+8419264E00EFF645EC455B2B2BD4E6B54DA7A4F836D04720129924522FFA7E97
+explicitly separates transcript excerpts from saved raw logs. There is no
+universal OS-crash proof or claim that an original duplicate stash entry
+survived merely because the same object is still present.
+
+README, AGENTS factual scope, roadmap and acceptance are synchronized to the
+accepted0.3.0 implementation. VERSION remains0.3.0. Git delivery is authorized
+to codex/0.3.0; root checks branch/staged paths, commits and pushes normally,
+then verifies remote refs. master must stay exactlyce5da58. No force, PR, tag,
+installer or later version is part of this handoff. Runtime usage/cost unknown.

@@ -178,7 +178,7 @@ impl Backend {
                 observed_at: chrono::Utc::now().to_rfc3339(),
                 head: captured.status.head,
                 entries: captured.wire,
-                unsupported: captured.unsupported || before.busy || before.unmerged,
+                unsupported: captured.unsupported || before.busy,
             };
             crate::actions::catalog::bounded_response(&result)?;
             Ok(result)

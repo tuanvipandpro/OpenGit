@@ -31,17 +31,25 @@ import type { RepositoryChangesState } from './stores/repositoryChanges';
 import { repositoryTransportStore } from './stores/repositoryTransport';
 import type { RepositoryTransportState, TransportLaunch } from './stores/repositoryTransport';
 import { RemoteActionDialog } from './features/sync/RemoteActionDialog';
+import { repositoryStashStore } from './stores/repositoryStash';
+import type { RepositoryStashState } from './stores/repositoryStash';
+import { StashDialog } from './features/stash/StashDialog';
 const sameActionScopeForPublication = (a: import('./contracts').ActionScope|null,b:import('./contracts').ActionScope|null)=>!!a&&!!b&&a.repoId===b.repoId&&a.worktreeId===b.worktreeId&&a.generation===b.generation;
 type FetchInteraction = { lease: RefreshInteractionLease; abort: AbortController };
 
-export default function App({ store = workspaceStore, tasks = operationsStore, history = historyStore, sync = repositorySyncStore, actions = repositoryActionsStore, changes = repositoryChangesStore, transport = repositoryTransportStore }: { store?: StoreApi<WorkspaceState>; tasks?: typeof operationsStore; history?: StoreApi<HistoryState>; sync?: StoreApi<RepositorySyncState>; actions?: StoreApi<RepositoryActionsState>; changes?: StoreApi<RepositoryChangesState>; transport?:StoreApi<RepositoryTransportState> }) {
+export default function App({ store = workspaceStore, tasks = operationsStore, history = historyStore, sync = repositorySyncStore, actions = repositoryActionsStore, changes = repositoryChangesStore, transport = repositoryTransportStore, stash = repositoryStashStore }: { store?: StoreApi<WorkspaceState>; tasks?: typeof operationsStore; history?: StoreApi<HistoryState>; sync?: StoreApi<RepositorySyncState>; actions?: StoreApi<RepositoryActionsState>; changes?: StoreApi<RepositoryChangesState>; transport?:StoreApi<RepositoryTransportState>; stash?: StoreApi<RepositoryStashState> }) {
   const state = useStore(store);
   const operations = useStore(tasks);
   const transportState=useStore(transport);
   const syncState = useStore(sync);
+  const publishedStashScope = useStore(history, value => value.loading ? null : value.session?.context.scope ?? null);
   const fetchOwner = useRef<FetchInteraction | null>(null);
   const actionOwner = useRef<FetchInteraction | null>(null);
   const remoteOwner=useRef<FetchInteraction|null>(null);
+  const stashOwner = useRef<FetchInteraction | null>(null);
+  const reconcileOwner = useRef<FetchInteraction | null>(null);
+  const [stashForm, setStashForm] = useState<{ owner: FetchInteraction; ready: boolean } | null>(null);
+  const [stashOpeningError, setStashOpeningError] = useState<string | null>(null);
   const [remoteForm,setRemoteForm]=useState<{owner:FetchInteraction;ready:boolean;launch:TransportLaunch}|null>(null);
   const [actionForm, setActionForm] = useState<{ owner: FetchInteraction; ready: boolean; launch: ActionLaunch } | null>(null);
   const [fetchForm, setFetchForm] = useState<{ owner: FetchInteraction; ready: boolean } | null>(null);
@@ -63,7 +71,7 @@ export default function App({ store = workspaceStore, tasks = operationsStore, h
     fetchOwner.current = null; owner.abort.abort(); sync.getState().clearPrepared(); setFetchForm(null); owner.lease.release();
   };
   const openFetch = () => {
-    if (fetchOwner.current || actionOwner.current||remoteOwner.current) return;
+    if (fetchOwner.current || actionOwner.current || remoteOwner.current || stashOwner.current) return;
     const lease = store.getState().beginInteraction(); if (!lease) return;
     const owner = { lease, abort: new AbortController() }; fetchOwner.current = owner;
     sync.getState().clearPrepared(); setFetchForm({ owner, ready: false });
@@ -83,7 +91,7 @@ export default function App({ store = workspaceStore, tasks = operationsStore, h
   };
   const openAction = (launch: ActionLaunch = {}) => {
     if(launch.remoteKind){openRemote({kind:launch.remoteKind,refName:launch.refName});return;}
-    if (actionOwner.current || fetchOwner.current||remoteOwner.current) return;
+    if (actionOwner.current || fetchOwner.current || remoteOwner.current || stashOwner.current) return;
     const lease = store.getState().beginInteraction(); if (!lease) return;
     const owner = { lease, abort: new AbortController() }; actionOwner.current = owner;
     actions.getState().clearPrepared(); setActionForm({ owner, ready: false, launch });
@@ -99,15 +107,55 @@ export default function App({ store = workspaceStore, tasks = operationsStore, h
   };
   function closeRemote(owner:FetchInteraction){if(remoteOwner.current!==owner)return;remoteOwner.current=null;owner.abort.abort();transport.getState().end();setRemoteForm(null);owner.lease.release();}
   function openRemote(launch:TransportLaunch){
-    if(remoteOwner.current||actionOwner.current||fetchOwner.current)return;const lease=store.getState().beginInteraction();if(!lease)return;
+    if(remoteOwner.current||actionOwner.current||fetchOwner.current||stashOwner.current)return;const lease=store.getState().beginInteraction();if(!lease)return;
     const owner={lease,abort:new AbortController()};remoteOwner.current=owner;setRemoteForm({owner,ready:false,launch});
     void lease.closed.then(()=>{owner.abort.abort();if(remoteOwner.current===owner){remoteOwner.current=null;transport.getState().end();setRemoteForm(null);}});
     void(async()=>{const ready=await lease.ready&&await actions.getState().awaitCatalog(owner.abort.signal);if(remoteOwner.current!==owner||!lease.isCurrent())return;if(ready)setRemoteForm({owner,ready:true,launch});else closeRemote(owner);})();
   }
+  const closeStash = (owner: FetchInteraction) => {
+    if (stashOwner.current !== owner) return;
+    stashOwner.current = null; owner.abort.abort(); stash.getState().end(); setStashForm(null); setStashOpeningError(null); owner.lease.release();
+  };
+  const openStash = () => {
+    if (stashOwner.current || fetchOwner.current || actionOwner.current || remoteOwner.current) return;
+    if (!currentStashScope()) { setStashOpeningError('Repository context is loading. Wait and open Stash again.'); return; }
+    const lease = store.getState().beginInteraction();
+    if (!lease) { setStashOpeningError('Close the current action or diff before opening Stash.'); return; }
+    setStashOpeningError(null);
+    const owner = { lease, abort: new AbortController() }; stashOwner.current = owner; setStashForm({ owner, ready: false });
+    void lease.closed.then(() => { owner.abort.abort(); if (stashOwner.current === owner) { stashOwner.current = null; stash.getState().end(); setStashForm(null); } });
+    void (async () => {
+      if (!await lease.ready || owner.abort.signal.aborted || stashOwner.current !== owner || !lease.isCurrent()) return;
+      await stash.getState().begin(); const ready = await stash.getState().awaitCatalog(owner.abort.signal);
+      if (stashOwner.current !== owner || !lease.isCurrent()) return;
+      if (ready) setStashForm({ owner, ready: true }); else closeStash(owner);
+    })();
+  };
+  const reconcileStash = async (id: string) => {
+    if (reconcileOwner.current) return;
+    const fail = (message: string) => tasks.setState(value => ({ outcomeErrors: { ...value.outcomeErrors, [id]: { code: 'InvalidHandle', phase: 'inspection', retry: 'none', message } } }));
+    if (!currentStashScope()) { fail('Repository is refreshing. Reconcile again when it is ready.'); return; }
+    const lease = store.getState().beginInteraction();
+    if (!lease) { fail('Close the current action or diff before reconciling this stash.'); return; }
+    const owner = { lease, abort: new AbortController() }; reconcileOwner.current = owner;
+    void lease.closed.then(() => { owner.abort.abort(); if (reconcileOwner.current === owner) reconcileOwner.current = null; });
+    try {
+      if (!await lease.ready || owner.abort.signal.aborted || reconcileOwner.current !== owner || !lease.isCurrent()) return;
+      const scope = currentStashScope();
+      if (!scope) { fail('Repository context changed. Reconcile again when it is ready.'); return; }
+      await tasks.getState().reconcileStash(scope, id, () => reconcileOwner.current === owner && !owner.abort.signal.aborted && lease.isCurrent() ? currentStashScope() : null);
+      if (reconcileOwner.current === owner && lease.isCurrent() && !sameActionScopeForPublication(scope, currentStashScope())) fail('Repository context changed. Reconcile again when it is ready.');
+    } finally {
+      if (reconcileOwner.current === owner) reconcileOwner.current = null;
+      owner.abort.abort(); lease.release();
+    }
+  };
   useEffect(() => () => {
     const action = actionOwner.current; actionOwner.current = null; action?.abort.abort(); action?.lease.cancel();
     const owner = fetchOwner.current; fetchOwner.current = null; owner?.abort.abort(); owner?.lease.cancel();
     const remote=remoteOwner.current;remoteOwner.current=null;remote?.abort.abort();remote?.lease.cancel();
+    const heldStash = stashOwner.current; stashOwner.current = null; heldStash?.abort.abort(); heldStash?.lease.cancel(); stash.getState().end();
+    const heldReconcile = reconcileOwner.current; reconcileOwner.current = null; heldReconcile?.abort.abort(); heldReconcile?.lease.cancel();
   }, []);
   useEffect(() => {
     let cloneChanged = false, actionChanged = false;
@@ -133,14 +181,20 @@ export default function App({ store = workspaceStore, tasks = operationsStore, h
     else if (actionChanged) void store.getState().requestRefresh('operation');
   }, [operations.snapshot, operations.outcomes, state.workspace?.activeSelection?.repoId, store, tasks]);
   const active = state.workspace?.repositories.find(repo => repo.id === state.workspace?.activeSelection?.repoId);
+  const currentStashScope = () => {
+    const currentHistory = history.getState(), scope = currentHistory.preferences.getState().scope, workspace = store.getState(), selection = workspace.workspace?.activeSelection;
+    return scope && !currentHistory.loading && !workspace.busy && !workspace.inspecting && sameActionScopeForPublication(scope, currentHistory.session?.context.scope ?? null) && selection?.repoId === scope.repoId && selection.worktreeId === scope.worktreeId ? scope : null;
+  };
+  useEffect(() => { setStashOpeningError(null); }, [state.workspace?.activeSelection?.repoId, state.workspace?.activeSelection?.worktreeId]);
   useEffect(() => {
     const disconnect = store.getState().connectHistory(history);
     const disconnectSync = sync.getState().connect(history);
     const disconnectActions = actions.getState().connect(history);
     const disconnectTransport=transport.getState().connect(history,actions,tasks);
+    const disconnectStash = stash.getState().connect(history);
     void store.getState().initialize();
-    return () => { disconnectTransport();disconnectActions(); disconnectSync(); disconnect(); };
-  }, [store, history, sync, actions,tasks,transport]);
+    return () => { disconnectStash(); disconnectTransport();disconnectActions(); disconnectSync(); disconnect(); };
+  }, [store, history, sync, actions,tasks,transport,stash]);
   const workspaceReady = state.workspace !== null;
   useEffect(() => {
     if (!workspaceReady) return;
@@ -153,7 +207,8 @@ export default function App({ store = workspaceStore, tasks = operationsStore, h
       <RecentRepositories workspace={state.workspace} onSelect={selection => { void leaveRepository(() => state.select(selection)); }} onForget={id => { void leaveRepository(() => state.forget(id)); }} />
       <div className="sidebar-bottom"><button className="settings-button" onClick={() => setSettings(value => !value)} aria-expanded={settings}>⚙ <span>Settings &amp; diagnostics</span></button>{settings && <section className="diagnostics" aria-label="Git diagnostics"><strong>OpenGit {state.environment?.appVersion ?? '0.3.0'}</strong><p>Git {state.environment?.git.available ? state.environment.git.version ?? 'available' : state.environment?.git.version ? state.environment.git.version + ' is unsupported. Git 2.31 or later is required.' : 'not found'}</p><p>Credential manager {state.environment?.credentialManager.available ? state.environment.credentialManager.version ?? 'available' : 'not detected'}</p><p>OpenSSH {state.environment?.openSsh.available ? state.environment.openSsh.version ?? 'available' : 'not detected'}</p></section>}</div>
     </aside>
-    <div className="main-shell" id="workspace"><header className="toolbar"><div className="current-repository"><span className="muted">Workspace /</span><strong>{active?.name ?? 'Overview'}</strong></div><div className="toolbar-actions">{active && <Button disabled={!!fetchForm || !!actionForm || !!remoteForm} onClick={() => openAction()}>Local actions</Button>}{active && <Button disabled={state.refreshing || state.busy} onClick={() => { void state.refresh(); }} aria-label="Refresh repository">↻ <span>Refresh</span></Button>}<Button disabled={state.busy || state.loading} onClick={() => { void leaveRepository(() => state.open()); }}>Open repository</Button><Button className="primary" disabled={cloneUnavailable} onClick={() => setCloneOpen(true)}>Clone repository</Button></div></header>
+    <div className="main-shell" id="workspace"><header className="toolbar"><div className="current-repository"><span className="muted">Workspace /</span><strong>{active?.name ?? 'Overview'}</strong></div><div className="toolbar-actions">{active && <Button disabled={!!fetchForm || !!actionForm || !!remoteForm || !!stashForm} onClick={() => openAction()}>Local actions</Button>}{active && <Button disabled={!!fetchForm || !!actionForm || !!remoteForm || !!stashForm || !publishedStashScope || !currentStashScope()} onClick={openStash}>Stash</Button>}{active && <Button disabled={state.refreshing || state.busy} onClick={() => { void state.refresh(); }} aria-label="Refresh repository">↻ <span>Refresh</span></Button>}<Button disabled={state.busy || state.loading} onClick={() => { void leaveRepository(() => state.open()); }}>Open repository</Button><Button className="primary" disabled={cloneUnavailable} onClick={() => setCloneOpen(true)}>Clone repository</Button></div></header>
+      {stashOpeningError && <p role="alert">{stashOpeningError}</p>}
       {state.error && <div className="global-error"><ErrorNotice error={state.error} onRetry={() => { void state.initialize(); }} /></div>}
       {repositoryTab === 'history' && state.inspectionError && <div className="global-error"><ErrorNotice error={state.inspectionError} onRetry={() => { void state.refresh(); }} /></div>}
       {active && <nav className="repository-tabs" aria-label="Repository views"><button type="button" aria-current={repositoryTab === 'overview' ? 'page' : undefined} onClick={() => { void leaveRepository(async () => setRepositoryTab('overview')); }}>Overview</button><button type="button" aria-current={repositoryTab === 'changes' ? 'page' : undefined} onClick={() => setRepositoryTab('changes')}>Changes</button><button type="button" aria-current={repositoryTab === 'history' ? 'page' : undefined} onClick={() => setRepositoryTab('history')}>History</button>{repositoryTab === 'history' && state.refreshing && <span className="repository-refresh-status" role="status">Refreshing…</span>}</nav>}
@@ -166,7 +221,9 @@ export default function App({ store = workspaceStore, tasks = operationsStore, h
         </>}
       </div>
       {operations.error && <div className="task-error"><ErrorNotice error={operations.error} onRetry={() => { void operations.sync(); }} /></div>}
-      <TaskPanel outcomes={operations.outcomes} outcomeErrors={operations.outcomeErrors} onInspect={id => { void operations.loadOutcome(id); }} operations={operations.snapshot?.operations ?? []} onCancel={id => { void operations.cancel(id); }} onRetry={() => setCloneOpen(true)} onOpen={operation => { if (operation.repoId) void leaveRepository(() => state.select({ repoId: operation.repoId!, worktreeId: operation.worktreeId })); }} />
+      <TaskPanel reconciling={operations.reconciling} canReconcile={operation => { const scope = currentStashScope(); return !!scope && operation.repoId === scope.repoId && operation.worktreeId === scope.worktreeId; }} onReconcile={id => { void reconcileStash(id); }} outcomes={operations.outcomes} outcomeErrors={operations.outcomeErrors} onInspect={id => { void operations.loadOutcome(id); }} operations={operations.snapshot?.operations ?? []} onCancel={id => { void operations.cancel(id); }} onRetry={() => setCloneOpen(true)} onOpen={operation => { if (operation.repoId) void leaveRepository(() => state.select({ repoId: operation.repoId!, worktreeId: operation.worktreeId })); }} />
+      {stashForm && !stashForm.ready && <p role="status">Waiting for current stash context… <button type="button" onClick={() => closeStash(stashForm.owner)}>Cancel opening stash</button></p>}
+      {stashForm?.ready && stashForm.owner.lease.isCurrent() && <StashDialog store={stash} onDismiss={() => closeStash(stashForm.owner)} onStarted={() => tasks.getState().sync()} onRefresh={() => { void store.getState().refresh(); }} />}
       {remoteForm&&!remoteForm.ready&&<p role="status">Waiting for current remote action context… <button type="button" onClick={()=>closeRemote(remoteForm.owner)}>Cancel opening remote action</button></p>}
       {remoteForm?.ready&&remoteForm.owner.lease.isCurrent()&&<RemoteActionDialog store={transport} refs={actions} sync={sync} launch={remoteForm.launch} onDismiss={()=>closeRemote(remoteForm.owner)} onStarted={()=>tasks.getState().sync()} onRefresh={()=>{void store.getState().refresh();}}/>}
       {actionForm && !actionForm.ready && <div role="status">Loading local actions… <button type="button" onClick={() => closeAction(actionForm.owner)}>Cancel opening local actions</button></div>}

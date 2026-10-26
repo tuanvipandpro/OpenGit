@@ -480,10 +480,11 @@ pub(crate) async fn execute(c: ActionContext) -> Result<Completion, AppError> {
         if !listed.success {
             return Err(changes::changed());
         }
+        type StageRows = std::collections::BTreeMap<(Vec<u8>, u8), Vec<u8>>;
         fn untouched(
             bytes: &[u8],
             selected: &std::collections::HashSet<Vec<u8>>,
-        ) -> Result<std::collections::BTreeMap<Vec<u8>, Vec<u8>>, AppError> {
+        ) -> Result<StageRows, AppError> {
             let mut result = std::collections::BTreeMap::new();
             for e in bytes.split(|b| *b == 0).filter(|e| !e.is_empty()) {
                 let at = e
@@ -491,7 +492,16 @@ pub(crate) async fn execute(c: ActionContext) -> Result<Completion, AppError> {
                     .position(|b| *b == b'\t')
                     .ok_or_else(changes::changed)?;
                 let path = e[at + 1..].to_vec();
-                if !selected.contains(&path) && result.insert(path, e[..at].to_vec()).is_some() {
+                let header = e[..at].split(|b| *b == b' ').collect::<Vec<_>>();
+                if header.len() != 3 || header[2].len() != 1 || !matches!(header[2][0], b'0'..=b'3')
+                {
+                    return Err(changes::changed());
+                }
+                if !selected.contains(&path)
+                    && result
+                        .insert((path, header[2][0]), e[..at].to_vec())
+                        .is_some()
+                {
                     return Err(changes::changed());
                 }
             }
@@ -503,31 +513,50 @@ pub(crate) async fn execute(c: ActionContext) -> Result<Completion, AppError> {
         if partial {
             let selected_actual = untouched(&listed.stdout, &std::collections::HashSet::new())?
                 .into_iter()
-                .filter(|(p, _)| selected.contains(p))
+                .filter(|((p, _), _)| selected.contains(p))
+                .map(|((path, stage), value)| {
+                    if stage != b'0' {
+                        return Err(changes::changed());
+                    }
+                    Ok((path, value))
+                })
+                .collect::<Result<Vec<_>, AppError>>()?
+                .into_iter()
                 .collect::<std::collections::BTreeMap<_, _>>();
             if selected_actual != expected_selected {
                 return Err(changes::changed());
             }
         }
-        let tree = native_with_attributes(
-            &c,
-            &argv(&["write-tree"]),
-            Some(owned),
-            None,
-            before_native.clone(),
-            attribute_guards.clone(),
-        )
-        .await?;
-        if !tree.success {
-            return Err(changes::unsupported());
-        }
-        let tree = String::from_utf8(tree.stdout)
-            .map_err(|_| io_error())?
-            .trim()
-            .to_owned();
-        if !matches!(tree.len(), 40 | 64) || !tree.bytes().all(|b| b.is_ascii_hexdigit()) {
-            return Err(io_error());
-        }
+        let remaining_unmerged = untouched(&listed.stdout, &std::collections::HashSet::new())?
+            .keys()
+            .any(|(_, stage)| *stage != b'0');
+        let tree = if remaining_unmerged {
+            if !matches!(c.intent, ActionIntent::Stage { .. }) {
+                return Err(changes::unsupported());
+            }
+            None
+        } else {
+            let tree = native_with_attributes(
+                &c,
+                &argv(&["write-tree"]),
+                Some(owned),
+                None,
+                before_native.clone(),
+                attribute_guards.clone(),
+            )
+            .await?;
+            if !tree.success {
+                return Err(changes::unsupported());
+            }
+            let tree = String::from_utf8(tree.stdout)
+                .map_err(|_| io_error())?
+                .trim()
+                .to_owned();
+            if !matches!(tree.len(), 40 | 64) || !tree.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return Err(io_error());
+            }
+            Some(tree)
+        };
         // write-tree can refresh cache-tree metadata: copy its final candidate bytes.
         let mut candidate_file = changes::open_regular(&alt)?;
         let candidate_identity = opened_identity(&candidate_file.file)?;
@@ -549,7 +578,7 @@ pub(crate) async fn execute(c: ActionContext) -> Result<Completion, AppError> {
         }
         artifacts[0].identity = candidate_identity;
         p.candidate_digest = Some(preflight::digest(&candidate_after));
-        p.candidate_tree = Some(tree.clone());
+        p.candidate_tree = tree.clone();
         p.phase = IndexPhase::CandidateReady;
         checkpoint(&c, &p, &artifacts)?;
         #[cfg(test)]
@@ -618,7 +647,7 @@ pub(crate) async fn execute(c: ActionContext) -> Result<Completion, AppError> {
         artifacts.retain(|a| a.kind != ArtifactKind::IndexLock);
         p.phase = IndexPhase::Published;
         p.effects = ActionEffects::Applied;
-        p.result.tree_oid = Some(tree);
+        p.result.tree_oid = tree;
         checkpoint(&c, &p, &artifacts)?;
         #[cfg(test)]
         pause(&c.resources.index_test.published).await;

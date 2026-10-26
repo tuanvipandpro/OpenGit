@@ -117,6 +117,7 @@ pub struct Plan {
     pub epoch: u64,
     pub(crate) execution_ticket: Option<ExecutionTicket>,
     pub ref_action: Option<super::journal::RefActionProof>,
+    pub(crate) stash_action: Option<super::stash::StashProof>,
 }
 struct LivePlan {
     value: Plan,
@@ -621,6 +622,9 @@ impl Authority {
                 p.bytes()
                     .max(serde_json::to_vec(p).map_or(usize::MAX / 2, |v| v.len()))
             })
+            + plan.stash_action.as_ref().map_or(0, |p| {
+                4096usize.max(serde_json::to_vec(p).map_or(usize::MAX / 2, |v| v.len()))
+            })
             + EXECUTION_TICKET_WEIGHT
             + 4096;
         if size > PLAN_WEIGHT {
@@ -699,6 +703,7 @@ impl Authority {
             remote_read: None,
             change_action: None,
             sync_action: None,
+            stash_action: plan.stash_action.clone(),
             targets: plan
                 .targets
                 .iter()
@@ -712,7 +717,7 @@ impl Authority {
         // enqueue. A later proof update must not discover an avoidable32KiB cap.
         let reserve = if super::sync::supported(record.kind) {
             16384
-        } else if super::changes::supported(record.kind) {
+        } else if super::changes::supported(record.kind) || super::stash::supported(record.kind) {
             8192
         } else {
             0
@@ -1165,6 +1170,7 @@ mod tests {
             },
             targets: vec![],
             ref_action: None,
+            stash_action: None,
             execution_ticket: None,
         }
     }

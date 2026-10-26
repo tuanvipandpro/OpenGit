@@ -115,3 +115,9 @@ it.each(['close', 'unmount'] as const)('S5B-FORM01 %s cancels inspection before 
   if (disposition === 'close') fireEvent.click(screen.getByRole('button', { name: 'Close diff' })); else t.view.unmount();
   await act(async () => ready(true)); expect(t.select).not.toHaveBeenCalled(); expect(t.reload).not.toHaveBeenCalled(); expect(t.release).toHaveBeenCalledOnce();
 });
+it.each([['U', 'U'], ['A', 'A'], ['D', 'D']] as const)('S6 unmerged %s%s allows only eligible whole-file Stage, blocks partial/Commit and respects other busy state', async (indexStatus, worktreeStatus) => {
+  const t = setup(); act(() => t.store.setState({ catalog: { ...catalog, entries: [{ ...catalog.entries[0], indexStatus, worktreeStatus, stageCapability: 'eligible', unstageCapability: 'unsupported' }] }, diff, selectedChange: { entryId: 'entry', side: 'unstaged' }, selection: { kind: 'lines', lineIds: ['add-2'] } }));
+  expect(screen.getByText(/Resolve files externally/)).toBeInTheDocument(); expect(screen.getByRole('button', { name: 'Commit staged changes' })).toBeDisabled(); expect(screen.getByRole('button', { name: 'Stage selected' })).toBeDisabled(); expect(screen.getByRole('checkbox', { name: 'Select added line 2' })).toBeDisabled(); expect(screen.getByRole('button', { name: 'Stage file' })).toBeEnabled(); expect(screen.getByRole('button', { name: 'Unstage file' })).toBeDisabled();
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Stage file' }))); await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Prepare' }))); expect(t.prepareFile).toHaveBeenCalledWith('entry', 'unstaged');
+  fireEvent.click(screen.getByRole('button', { name: 'Close' })); act(() => t.store.setState({ catalog: { ...catalog, unsupported: true } })); expect(screen.getByRole('button', { name: 'Stage file' })).toBeDisabled();
+});

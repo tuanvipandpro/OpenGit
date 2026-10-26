@@ -1,5 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import type { ActionOperationResult, AppError, OperationSnapshot, OperationsSnapshot } from '../contracts';
+import type { ActionScope, StashActionResult } from '../contracts';
 import type { Api } from './workspace';
 import { createOperationsStore } from './operations';
 import wire from '../../fixtures/contracts/daily-wire.json';
@@ -9,6 +10,60 @@ const action = (id: string): OperationSnapshot => ({ ...operation, id, sequence:
 const result = (value: OperationSnapshot, prune = false): ActionOperationResult => ({ operation: value, fetch: { prune, remotes: [] } });
 const failure: AppError = { code: 'Internal', phase: 'inspection', retry: 'retry', message: 'Result unavailable' };
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
+const stashScope: ActionScope = { repoId: 'repo', worktreeId: 'tree', generation: '1' };
+const stashEvidence: StashActionResult = { stashOid: 'a'.repeat(40), stashRetention: 'present', recoveryRefRetention: 'unknown', resolution: 'unmerged', failureReason: 'conflict' };
+const stashCatalog = () => ({ scope: stashScope, catalogId: 'discarded-runtime-catalog', observedAt: '', entries: [], saveAvailable: true });
+it('S6 loads typed stash outcomes and Reconciles only matching current repo/worktree context without a new operation', async () => {
+  const value: OperationSnapshot = { ...action('stash'), actionKind: 'stashApply', repoId: 'repo', worktreeId: 'tree' };
+  let currentScope: ActionScope | null = stashScope;
+  const api = vi.fn(async (command: string) => command === 'get_operations' ? { ok: true, value: { streamId: 'stash', sequence: '1', operations: [value] } } : command === 'get_repository_stashes' ? { ok: true, value: stashCatalog() } : { ok: true, value: { operation: value, result: command === 'reconcile_stash_action' ? { ...stashEvidence, resolution: 'resolvedExternally' } : stashEvidence } }) as unknown as Api;
+  const store = createOperationsStore(api); await store.getState().sync(); await store.getState().loadOutcome(value.id);
+  expect(api).toHaveBeenCalledWith('get_stash_action_outcome', { operationId: value.id }); expect(store.getState().outcomes[value.id].stashResult?.recoveryRefRetention).toBe('unknown');
+  currentScope = { ...stashScope, repoId: 'other' }; await store.getState().reconcileStash(stashScope, value.id, () => currentScope); expect(vi.mocked(api).mock.calls.some(([command]) => command === 'reconcile_stash_action')).toBe(false);
+  currentScope = stashScope; await store.getState().reconcileStash(stashScope, value.id, () => currentScope);
+  const commands = vi.mocked(api).mock.calls.map(([command]) => command);
+  expect(commands.indexOf('get_repository_stashes')).toBeLessThan(commands.indexOf('reconcile_stash_action'));
+  expect(api).toHaveBeenCalledWith('reconcile_stash_action', { scope: stashScope, operationId: value.id }); expect(store.getState().outcomes[value.id].stashResult?.resolution).toBe('resolvedExternally'); expect(store.getState().snapshot?.operations).toEqual([value]);
+  expect(vi.mocked(api).mock.calls.some(([command]) => ['prepare_repository_action', 'execute_repository_action'].includes(command))).toBe(false);
+});
+it('S6 Reconcile fences late responses across scope/stream changes and authoritative removal retires transient state', async () => {
+  const value: OperationSnapshot = { ...action('stash'), actionKind: 'stashApply', repoId: 'repo', worktreeId: 'tree' }, pending = deferred<unknown>();
+  let currentScope: ActionScope | null = stashScope, next: OperationsSnapshot = { streamId: 'stash', sequence: '1', operations: [value] };
+  const api = vi.fn(async (command: string) => command === 'get_operations' ? { ok: true, value: next } : command === 'get_repository_stashes' ? { ok: true, value: stashCatalog() } : pending.promise) as unknown as Api;
+  const store = createOperationsStore(api); await store.getState().sync(); const read = store.getState().reconcileStash(stashScope, value.id, () => currentScope);
+  await Promise.resolve(); await Promise.resolve();
+  expect(api).toHaveBeenCalledWith('reconcile_stash_action', { scope: stashScope, operationId: value.id });
+  expect(store.getState().reconciling[value.id]).toBe(true); currentScope = { ...stashScope, generation: '2' }; next = { streamId: 'replacement', sequence: '2', operations: [] }; await store.getState().sync();
+  pending.resolve({ ok: true, value: { operation: value, result: stashEvidence } }); await read; expect(store.getState().outcomes).toEqual({}); expect(store.getState().reconciling).toEqual({});
+});
+it('S6 Reconcile waits for an in-flight outcome read and submits one read-only reconciliation', async () => {
+  const value: OperationSnapshot = { ...action('stash'), actionKind: 'stashApply', repoId: 'repo', worktreeId: 'tree' }, pending = deferred<unknown>();
+  const api = vi.fn(async (command: string) => command === 'get_operations' ? { ok: true, value: { streamId: 'stash', sequence: '1', operations: [value] } } : command === 'get_stash_action_outcome' ? pending.promise : command === 'get_repository_stashes' ? { ok: true, value: stashCatalog() } : { ok: true, value: { operation: value, result: stashEvidence } }) as unknown as Api;
+  const store = createOperationsStore(api); await store.getState().sync(); const outcome = store.getState().loadOutcome(value.id), reconcile = store.getState().reconcileStash(stashScope, value.id, () => stashScope);
+  pending.resolve({ ok: true, value: { operation: value, result: stashEvidence } }); await Promise.all([outcome, reconcile]); expect(vi.mocked(api).mock.calls.filter(([command]) => command === 'reconcile_stash_action')).toHaveLength(1);
+});
+
+it('S6 Reconcile discards a late scope-publication reply without sending a stale reconcile or retaining catalog authority', async () => {
+  const value: OperationSnapshot = { ...action('stash'), actionKind: 'stashApply', repoId: 'repo', worktreeId: 'tree' }, pending = deferred<unknown>();
+  let current: ActionScope | null = stashScope;
+  const api = vi.fn(async (command: string) => command === 'get_operations' ? { ok: true, value: { streamId: 'stash', sequence: '1', operations: [value] } } : pending.promise) as unknown as Api;
+  const store = createOperationsStore(api); await store.getState().sync();
+  const read = store.getState().reconcileStash(stashScope, value.id, () => current);
+  current = { ...stashScope, generation: '2' }; pending.resolve({ ok: true, value: stashCatalog() }); await read;
+  expect(vi.mocked(api).mock.calls.some(([command]) => command === 'reconcile_stash_action')).toBe(false);
+  expect(store.getState().outcomes).toEqual({}); expect(store.getState().reconciling).toEqual({});
+});
+it.each(['error', 'wrongScope'] as const)('S6 Reconcile keeps prior evidence and refuses a %s scope-publication reply', async reason => {
+  const value: OperationSnapshot = { ...action('stash'), actionKind: 'stashApply', repoId: 'repo', worktreeId: 'tree' };
+  const api = vi.fn(async (command: string) => command === 'get_operations' ? { ok: true, value: { streamId: 'stash', sequence: '1', operations: [value] } }
+    : command === 'get_repository_stashes' ? reason === 'error' ? { ok: false, error: failure } : { ok: true, value: { ...stashCatalog(), scope: { ...stashScope, generation: 'other' } } }
+      : { ok: true, value: { operation: value, result: stashEvidence } }) as unknown as Api;
+  const store = createOperationsStore(api); await store.getState().sync(); await store.getState().loadOutcome(value.id);
+  await store.getState().reconcileStash(stashScope, value.id, () => stashScope);
+  expect(vi.mocked(api).mock.calls.some(([command]) => command === 'reconcile_stash_action')).toBe(false);
+  expect(store.getState().outcomes[value.id].stashResult).toEqual(stashEvidence);
+  expect(store.getState().outcomeErrors[value.id]).toBeDefined(); expect(store.getState().outcomes[value.id]).not.toHaveProperty('catalogId');
+});
 
 it.each(['stageSelection', 'unstageSelection'] as const)('S5-B retains %s structured change outcome and retires it on removal', async kind => {
   const value: OperationSnapshot = { ...action('partial'), actionKind: kind };

@@ -1,4 +1,4 @@
-"""Production binary: no chooser seam, persisted workspace and pane layout."""
+"""Production binary: no chooser seam, workspace, graph/context and daily UI."""
 import json
 import os
 from pathlib import Path
@@ -19,7 +19,7 @@ if __name__ == '__main__':
     assert b'OPENGIT_E2E_DIALOGS_JSON' not in production.read_bytes(), 'Production contains test chooser switch'
     with LiveRemotes(ROOT) as fixture:
         for index in range(35):
-            (fixture.source / f'change-{index:02}.txt').write_text('Owned layout fixture\n')
+            (fixture.source / f'change-{index:02}.txt').write_text('Owned layout fixture\n', encoding='utf-8', newline='\n')
         for index in range(12):
             fixture._git('-C', str(fixture.source), 'remote', 'add', f'fixture-{index:02}',
                          f'https://example.invalid/owned-{index:02}.git')
@@ -70,4 +70,39 @@ return infoOnly && mainOnly && document.documentElement.scrollWidth<=innerWidth
                 desktop.script('document.querySelectorAll(".repository-main,.repository-info").forEach(e=>e.scrollTop=0)')
                 print('Actual WebView viewport:', desktop.script('return [innerWidth,innerHeight]'), flush=True)
                 print('Screenshot:', desktop.screenshot(f'production-{width}x{height}.png'), flush=True)
-            print('PASS: no-e2e production binary, persisted workspace, typed IPC and independent panes at both window sizes')
+            click_text(desktop, 'History')
+            wait_for(lambda: desktop.script('return !!document.querySelector(".history-commit-row")'),
+                     'production history rows', timeout=90)
+            assert desktop.script('''
+                const c=document.querySelector('canvas.history-graph');
+                if(!c||!c.width||!c.height)return false;
+                const p=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
+                for(let i=3;i<p.length;i+=4)if(p[i])return true;
+                return false;
+            '''), 'Production canvas did not render the actual graph'
+            desktop.click('.history-commit-row')
+            wait_for(lambda: desktop.script('''
+                const p=document.querySelector('[aria-label="Commit branch containment"]');
+                const b=p?.querySelector('[data-ref-name="refs/heads/main"]');
+                return b?.getAttribute('data-membership')==='contains'&&!p.querySelector('[role=alert]');
+            '''), 'production selected-commit branch context', timeout=90)
+            assert desktop.script('''return ['Local actions','Stash'].every(name=>
+                [...document.querySelectorAll('button')].some(b=>b.textContent===name&&!b.disabled))''')
+            click_text(desktop, 'Changes')
+            wait_for(lambda: desktop.script('''
+                const b=[...document.querySelectorAll('.change-path')].find(b=>b.textContent==='change-00.txt'&&!b.disabled);
+                if(!b)return false;b.click();return true;
+            '''), 'production Changes selection', timeout=90)
+            wait_for(lambda: desktop.script('''
+                const d=document.querySelector('[aria-label="Change diff"]');
+                return d?.textContent.includes('Owned layout fixture')&&!!d.querySelector('input[type=checkbox]');
+            '''), 'production eligible structured diff', timeout=90)
+            click_text(desktop, 'Close diff')
+            click_text(desktop, 'Stash')
+            wait_for(lambda: desktop.script('''return !!document.querySelector('dialog[open], [role=dialog]')&&
+                [...document.querySelectorAll('button')].some(b=>b.textContent==='Save stash')'''),
+                     'production Stash manager', timeout=90)
+            click_text(desktop, 'Close')
+            assert workspace(desktop)['activeSelection'] == selection
+            print('Screenshot:', desktop.screenshot('production-daily.png'), flush=True)
+            print('PASS: no-e2e production binary, persisted workspace, typed IPC, two layouts, graph/containment, structured Changes and Stash controls')

@@ -1,0 +1,93 @@
+{
+  "catalogRequest": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    }
+  },
+  "catalog": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    },
+    "catalogId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "observedAt": "2026-10-26T00:00:00Z",
+    "entries": [
+      {
+        "entryId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "ordinal": "9007199254740993",
+        "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "baseOid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "includesUntracked": true,
+        "applyAvailable": true
+      }
+    ],
+    "saveAvailable": true
+  },
+  "resolveRequest": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    },
+    "catalogId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "entryId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  },
+  "resolved": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    },
+    "catalogId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "entryId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "stashHandle": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "outcomeRequest": {
+    "operationId": "00000000-0000-4000-8000-000000000030"
+  },
+  "reconcileRequest": {
+    "scope": {
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "generation": "9007199254740993"
+    },
+    "operationId": "00000000-0000-4000-8000-000000000030"
+  },
+  "result": {
+    "operation": {
+      "id": "00000000-0000-4000-8000-000000000030",
+      "sequence": "3",
+      "kind": "action",
+      "state": "Succeeded",
+      "phase": "verification",
+      "repoId": "repo",
+      "worktreeId": "tree",
+      "sourceDisplay": "Repository action",
+      "destinationDisplay": "Selected repository",
+      "progress": null,
+      "canCancel": false,
+      "authPrompt": null,
+      "error": null,
+      "createdAt": "2026-10-25T00:00:00Z",
+      "updatedAt": "2026-10-25T01:00:00Z",
+      "actionKind": "stashPush",
+      "outcome": {
+        "effects": "applied",
+        "recovery": "none",
+        "cancellationRequested": false,
+        "repositoryChanged": true,
+        "observedAt": "2026-10-25T01:00:00Z"
+      }
+    },
+    "result": {
+      "stashOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "stashRetention": "present",
+      "recoveryRefRetention": "unknown",
+      "resolution": "notRequired",
+      "failureReason": null
+    }
+  }
+}

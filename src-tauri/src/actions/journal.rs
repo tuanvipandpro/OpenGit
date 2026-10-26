@@ -431,6 +431,8 @@ pub struct ActionRecord {
     pub change_action: Option<ChangeActionProof>,
     #[serde(default)]
     pub sync_action: Option<SyncActionProof>,
+    #[serde(default)]
+    pub(crate) stash_action: Option<super::stash::StashProof>,
     pub phase: WritePhase,
     pub postcondition: Option<String>,
     pub outcome: Option<ActionOutcome>,
@@ -498,6 +500,9 @@ pub(crate) fn write_to(
     }
     if let Some(p) = &r.sync_action {
         super::sync::validate_proof(p, r.kind)?;
+    }
+    if let Some(p) = &r.stash_action {
+        p.validate(r.kind)?;
     }
     if let Some(p) = &r.remote_read {
         SafeTargetProof::Remote {

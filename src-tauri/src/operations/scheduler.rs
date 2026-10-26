@@ -740,6 +740,12 @@ impl Scheduler {
                 .or_else(|| {
                     crate::actions::journal::read(&self.database, id)
                         .ok()
+                        .and_then(|record| record.stash_action)
+                        .map(|proof| proof.effects)
+                })
+                .or_else(|| {
+                    crate::actions::journal::read(&self.database, id)
+                        .ok()
                         .and_then(|r| r.change_action)
                         .map(|p| p.effects)
                 })
@@ -808,6 +814,24 @@ impl Scheduler {
             return Err(invalid());
         }
         record.change_action = Some(proof);
+        record.artifacts = artifacts;
+        self.commit_action(&mut inner, snapshot, &record)?;
+        Ok(())
+    }
+    pub(crate) fn action_stash_checkpoint(
+        &self,
+        id: &str,
+        proof: crate::actions::stash::StashProof,
+        artifacts: Vec<crate::actions::journal::ArtifactProof>,
+    ) -> Result<(), AppError> {
+        let mut inner = self.inner.lock().map_err(|_| internal())?;
+        let snapshot = inner.entries.get(id).ok_or_else(invalid)?.snapshot.clone();
+        if state::terminal(&snapshot.state) {
+            return Err(invalid());
+        }
+        let mut record = crate::actions::journal::read(&self.database, id)?;
+        proof.validate(record.kind)?;
+        record.stash_action = Some(proof);
         record.artifacts = artifacts;
         self.commit_action(&mut inner, snapshot, &record)?;
         Ok(())
@@ -1551,6 +1575,7 @@ mod action_retention_tests {
             ref_action: None,
             change_action: None,
             sync_action: None,
+            stash_action: None,
             remote_read: None,
             phase: WritePhase::Prepared,
             postcondition: None,

@@ -11,6 +11,7 @@ import { createRepositorySyncStore } from './stores/repositorySync';
 import { createRepositoryActionsStore } from './stores/repositoryActions';
 import { createRepositoryChangesStore } from './stores/repositoryChanges';
 import { createRepositoryTransportStore } from './stores/repositoryTransport';
+import { createRepositoryStashStore } from './stores/repositoryStash';
 import changesWire from '../fixtures/contracts/changes-wire.json';
 import refFixture from '../fixtures/contracts/ref-actions-wire.json';
 import type { Workspace, ToolInfo, Environment } from './contracts';
@@ -26,6 +27,7 @@ function makeServices(failed = false, git?: ToolInfo) {
     if (command === 'get_repository_actions') return { ok: true, value: { scope: request.scope, snapshotId: 'catalog', observedAt: '', head: { kind: 'unborn', branch: 'main', oid: null }, branches: [], symbolicBranches: [], remotes: [], sync: { currentBranch: null, upstream: null, ahead: null, behind: null, completeness: 'complete' } } };
     if (command === 'get_ref_actions') return { ok: true, value: { ...refFixture.catalog, scope: request.scope, catalogId: `refs-${(request.scope as import('./contracts').ActionScope).generation}` } };
     if (command === 'get_repository_changes') return { ok:true,value:{...changesWire.catalog,scope:request.scope,catalogId:`changes-${(request.scope as import('./contracts').ActionScope).generation}`}};
+    if (command === 'get_repository_stashes') return { ok: true, value: { scope: request.scope, catalogId: `stashes-${(request.scope as import('./contracts').ActionScope).generation}`, observedAt: '', saveAvailable: true, entries: [] } };
     if (command === 'resolve_ref_action_target') return { ok: true, value: { ...refFixture.resolved, scope: request.scope, catalogId: request.catalogId, kind: 'commit', displayName: 'HEAD' } };
     if (command === 'get_environment') return git ? { ok: true, value: { ...(fixture.commands[0].result.value as unknown as Environment), git } } : fixture.commands[0].result;
     if (command === 'get_workspace') return failed ? fixture.error : { ok: true, value: empty };
@@ -38,8 +40,133 @@ function makeServices(failed = false, git?: ToolInfo) {
     if (command === 'get_operations') return { ok: true, value: { streamId: 'stream', sequence: '0', operations: [] } };
     throw Error('Unexpected command');
   }) as unknown as Api;
-  return { transport: createRepositoryTransportStore(api), changes:createRepositoryChangesStore(api),actions: createRepositoryActionsStore(api), sync: createRepositorySyncStore(api), store: createWorkspaceStore(api, async () => () => {}), history: createHistoryStore(api), tasks: createOperationsStore(api, async () => () => {}), api };
+  return { stash: createRepositoryStashStore(api), transport: createRepositoryTransportStore(api), changes:createRepositoryChangesStore(api),actions: createRepositoryActionsStore(api), sync: createRepositorySyncStore(api), store: createWorkspaceStore(api, async () => () => {}), history: createHistoryStore(api), tasks: createOperationsStore(api, async () => () => {}), api };
 }
+function pendingReconcileServices() {
+  const services = makeServices(), original = vi.mocked(services.api).getMockImplementation()!;
+  let operation!: import('./contracts').OperationSnapshot, finish: ((value: unknown) => void) | null = null;
+  const evidence = { stashOid: 'a'.repeat(40), stashRetention: 'present', recoveryRefRetention: 'present', resolution: 'unmerged', failureReason: 'conflict' };
+  vi.mocked(services.api).mockImplementation(((command: string, request: Record<string, unknown>) => {
+    if (command === 'get_operations' && operation) return Promise.resolve({ ok: true, value: { streamId: 'held-stash', sequence: operation.sequence, operations: [operation] } });
+    if (command === 'get_stash_action_outcome') return Promise.resolve({ ok: true, value: { operation, result: evidence } });
+    if (command === 'reconcile_stash_action') return new Promise<unknown>(resolve => { finish = resolve; });
+    return original(command as never, request as never);
+  }) as Api);
+  return { ...services,
+    seed: async () => {
+      await services.store.getState().open();
+      const scope = services.history.getState().preferences.getState().scope!;
+      operation = { ...refFixture.result.operation as import('./contracts').OperationSnapshot, repoId: scope.repoId, worktreeId: scope.worktreeId, actionKind: 'stashApply', state: 'Failed', error: null, outcome: { ...refFixture.result.operation.outcome as NonNullable<import('./contracts').OperationSnapshot['outcome']>, effects: 'conflict', repositoryChanged: false } };
+      services.tasks.setState({ snapshot: { streamId: 'held-stash', sequence: operation.sequence, operations: [operation] } });
+    },
+    complete: () => { const reply = finish; finish = null; reply?.({ ok: true, value: { operation, result: { ...evidence, resolution: 'resolvedExternally' } } }); },
+  };
+}
+it('S6-RECONCILE02 holds one real lease through slow read-only Reconcile and flushes passive refresh once', async () => {
+  vi.useFakeTimers(); const services = pendingReconcileServices(), view = render(<App {...services} />);
+  try {
+    await act(async () => services.seed()); await act(async () => {});
+    const reads = () => vi.mocked(services.api).mock.calls.filter(([command]) => command === 'inspect_repository').length;
+    const before = reads();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Reconcile stash' })); fireEvent.click(screen.getByRole('button', { name: 'Reconcile stash' })); });
+    expect(vi.mocked(services.api).mock.calls.filter(([command]) => command === 'reconcile_stash_action')).toHaveLength(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(61_000); window.dispatchEvent(new Event('focus')); await vi.advanceTimersByTimeAsync(200); await services.store.getState().requestRefresh('watch'); });
+    expect(reads()).toBe(before);
+    await act(async () => services.complete()); await act(async () => {});
+    expect(screen.getByText('Resolved externally')).toBeInTheDocument(); expect(reads()).toBe(before + 1);
+    expect(vi.mocked(services.api).mock.calls.some(([command]) => ['prepare_repository_action', 'execute_repository_action'].includes(command))).toBe(false);
+  } finally { services.complete(); view.unmount(); vi.useRealTimers(); }
+});
+it('S6-RECONCILE02 manual refresh and hard forget fence replies and retire the read interaction', async () => {
+  const services = pendingReconcileServices(), view = render(<App {...services} />);
+  try {
+    await act(async () => services.seed()); await act(async () => {});
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Reconcile stash' })));
+    await act(async () => services.store.getState().requestRefresh('manual'));
+    await act(async () => services.complete());
+    expect(screen.queryByText('Resolved externally')).not.toBeInTheDocument(); expect(screen.getByText('Repository context changed. Reconcile again when it is ready.')).toBeInTheDocument();
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Reconcile stash' })));
+    await act(async () => services.store.getState().forget(services.store.getState().workspace!.activeSelection!.repoId));
+    await act(async () => services.complete());
+    expect(screen.queryByText('Resolved externally')).not.toBeInTheDocument(); expect(services.tasks.getState().reconciling).toEqual({});
+  } finally { services.complete(); view.unmount(); }
+});
+it('S6-READY01 waits for published history before enabling Stash and opens once after publication', async () => {
+  const services = makeServices(), original = vi.mocked(services.api).getMockImplementation()!;
+  let finish!: (value: unknown) => void, historyRequest!: Record<string, unknown>;
+  vi.mocked(services.api).mockImplementation(((command: string, request: Record<string, unknown>) => command === 'open_history'
+    ? (historyRequest = request, new Promise<unknown>(resolve => { finish = resolve; })) : original(command as never, request as never)) as Api);
+  const view = render(<App {...services} />);
+  try {
+    let opening: Promise<unknown> | undefined;
+    await act(async () => { opening = services.store.getState().open(); for (let i = 0; i < 10; i++) await Promise.resolve(); });
+    const button = await screen.findByRole('button', { name: 'Stash' });
+    expect(button).toBeDisabled(); fireEvent.click(button);
+    expect(vi.mocked(services.api).mock.calls.some(([command]) => command === 'get_repository_stashes')).toBe(false);
+    await act(async () => { finish(await original('open_history' as never, historyRequest as never)); await opening; });
+    expect(button).toBeEnabled();
+    const begin = vi.spyOn(services.store.getState(), 'beginInteraction');
+    await act(async () => { fireEvent.click(button); fireEvent.click(button); });
+    expect(begin).toHaveBeenCalledOnce(); expect(screen.getByRole('dialog', { name: 'Stash' })).toBeInTheDocument();
+  } finally { view.unmount(); }
+});
+it('S6-READY01 explains an unavailable interaction and opens after the existing owner releases it', async () => {
+  const services = makeServices(), view = render(<App {...services} />);
+  try {
+    await act(async () => services.store.getState().open()); await act(async () => {});
+    const held = services.store.getState().beginInteraction()!; expect(held).not.toBeNull();
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Stash' })));
+    expect(screen.getByRole('alert')).toHaveTextContent('Close the current action or diff before opening Stash.');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(vi.mocked(services.api).mock.calls.some(([command]) => command === 'get_repository_stashes')).toBe(false);
+    await act(async () => { held.release(); fireEvent.click(screen.getByRole('button', { name: 'Stash' })); });
+    expect(screen.getByRole('dialog', { name: 'Stash' })).toBeInTheDocument(); expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  } finally { view.unmount(); }
+});
+it('S6 stash form holds real passive refresh, retains inputs through urgent refresh and hard-closes on forget', async () => {
+  vi.useFakeTimers(); const services = makeServices(), original = vi.mocked(services.api).getMockImplementation()!;
+  vi.mocked(services.api).mockImplementation(((command: string, request: Record<string, unknown>) => command === 'prepare_repository_action' ? Promise.resolve({ ok: true, value: { scope: request.scope, kind: 'stashPush', planId: 'save', expiresAt: '2099-01-01', warnings: [] } }) : original(command as never, request as never)) as Api);
+  const view = render(<StrictMode><App {...services} /></StrictMode>);
+  try {
+    await act(async () => services.store.getState().open()); await act(async () => {}); const begin = vi.spyOn(services.store.getState(), 'beginInteraction');
+    fireEvent.click(screen.getByRole('button', { name: 'Stash' })); fireEvent.click(screen.getByRole('button', { name: 'Stash' })); await act(async () => {}); expect(begin).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Save stash' })); fireEvent.change(screen.getByLabelText('Stash message'), { target: { value: 'preserve message' } }); fireEvent.click(screen.getByLabelText('Include untracked files'));
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Prepare' })));
+    const reads = () => vi.mocked(services.api).mock.calls.filter(([command]) => command === 'inspect_repository').length, before = reads();
+    await act(async () => { await vi.advanceTimersByTimeAsync(61_000); window.dispatchEvent(new Event('focus')); await vi.advanceTimersByTimeAsync(200); await services.store.getState().requestRefresh('watch'); });
+    expect(reads()).toBe(before); expect(screen.getByRole('button', { name: 'Execute' })).toBeEnabled();
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Refresh context' })));
+    expect(screen.getByLabelText('Stash message')).toHaveValue('preserve message'); expect(screen.getByLabelText('Include untracked files')).toBeChecked(); expect(screen.getByRole('button', { name: 'Execute' })).toBeDisabled();
+    expect(vi.mocked(services.api).mock.calls.filter(([command]) => command === 'prepare_repository_action')).toHaveLength(1);
+    await act(async () => services.store.getState().forget(services.store.getState().workspace!.activeSelection!.repoId)); expect(screen.queryByRole('dialog')).not.toBeInTheDocument(); expect(services.stash.getState().message).toBe('');
+  } finally { view.unmount(); vi.useRealTimers(); }
+});
+it('S6 cancel opening and late stash catalogs cannot reopen a retired manager', async () => {
+  const services = makeServices(), original = vi.mocked(services.api).getMockImplementation()!; let finish!: (value: unknown) => void, request!: Record<string, unknown>;
+  vi.mocked(services.api).mockImplementation(((command: string, value: Record<string, unknown>) => command === 'get_repository_stashes' ? (request = value, new Promise<unknown>(resolve => { finish = resolve; })) : original(command as never, value as never)) as Api);
+  const view = render(<App {...services} />);
+  try {
+    await act(async () => services.store.getState().open()); await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Stash' })));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel opening stash' })); await act(async () => finish({ ok: true, value: { scope: request.scope, catalogId: 'late', saveAvailable: true, entries: [], observedAt: '' } }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument(); const lease = services.store.getState().beginInteraction()!; expect(lease).not.toBeNull(); lease.release();
+  } finally { view.unmount(); }
+});
+it('S6 Tasks reconcile uses the published current scope and renders Resolved externally without queuing another action', async () => {
+  const services = makeServices(), original = vi.mocked(services.api).getMockImplementation()!;
+  let operation!: import('./contracts').OperationSnapshot;
+  vi.mocked(services.api).mockImplementation(((command: string, request: Record<string, unknown>) => ['get_stash_action_outcome', 'reconcile_stash_action'].includes(command) ? Promise.resolve({ ok: true, value: { operation, result: { stashOid: 'a'.repeat(40), stashRetention: 'present', recoveryRefRetention: 'unknown', resolution: command === 'reconcile_stash_action' ? 'resolvedExternally' : 'unmerged', failureReason: 'conflict' } } }) : original(command as never, request as never)) as Api);
+  const view = render(<App {...services} />);
+  try {
+    await act(async () => services.store.getState().open()); await act(async () => {}); const scope = services.history.getState().preferences.getState().scope!;
+    operation = { ...refFixture.result.operation as import('./contracts').OperationSnapshot, repoId: scope.repoId, worktreeId: scope.worktreeId, actionKind: 'stashApply', error: null, outcome: { ...refFixture.result.operation.outcome as NonNullable<import('./contracts').OperationSnapshot['outcome']>, effects: 'conflict', repositoryChanged: false } };
+    await act(async () => services.tasks.setState({ snapshot: { streamId: 'stash', sequence: operation.sequence, operations: [operation] } }));
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Reconcile stash' })));
+    expect(services.api).toHaveBeenCalledWith('reconcile_stash_action', { scope, operationId: operation.id }); expect(screen.getByText('Resolved externally')).toBeInTheDocument();
+    expect(vi.mocked(services.api).mock.calls.some(([command]) => ['prepare_repository_action', 'execute_repository_action'].includes(command))).toBe(false);
+    await act(async () => services.history.getState().preferences.setState({ scope: { ...scope, generation: 'staged-refresh' } }));
+    expect(screen.getByRole('button', { name: 'Reconcile stash' })).toBeDisabled();
+  } finally { view.unmount(); }
+});
 it('S5 changes commit form reuses the real interaction lease, keeps its draft through manual refresh, and retires on selection disposal',async()=>{
     vi.useFakeTimers();const services=makeServices(),original=vi.mocked(services.api).getMockImplementation()!;
     vi.mocked(services.api).mockImplementation(((command:string,request:Record<string,unknown>)=>command==='prepare_repository_action'?Promise.resolve({ok:true,value:{scope:request.scope,kind:'commit',planId:'commit-preview',expiresAt:'2099-01-01',warnings:[]}}):original(command as never,request as never)) as Api);

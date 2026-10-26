@@ -1,6 +1,6 @@
 # OpenGit roadmap
 
-Release completion is not claimed. Checkpoint0.2.0 ce5da58 has native Windows evidence;0.3.0 is being implemented under task007 and versions0.4.0 onward remain planned. The canonical current target is recorded in the root `VERSION` file; it does not imply that a release exists. This document is scope, not implementation evidence or authorization to build all versions in one task. First supported target: Windows; portable architecture for later macOS/Linux releases.
+Release publication is not claimed. Checkpoint0.2.0 ce5da58 remains on master;0.3.0 implementation passed independent Windows Gate3 under task007, on codex/0.3.0. Versions0.4.0 onward remain planned and are not authorized by this completion. The canonical current target stays in root `VERSION`; it does not imply that an installer/tag/release exists. This document is scope; task007 and its evidence record actual acceptance. First supported target: Windows; portable architecture for later macOS/Linux releases.
 
 Current0.3.0 implementation/review status is tracked in [task007](tasks/007-implement-0.3.0.md) and [plan](plans/0.3.0.md); earlier [0.2.0 evidence](testing/0.2.0-acceptance.md) and external-provider EXT-01 in [0.1.0 evidence](testing/0.1.0-acceptance.md) remain separate. This roadmap does not replace living evidence.
 

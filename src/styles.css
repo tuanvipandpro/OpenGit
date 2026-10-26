@@ -45,3 +45,12 @@
 .change-diff-delete { background: #3b242c; }
 .change-no-lf { display: block; color: #d6b77b; font-style: italic; }
 .commit-form label:has(input[type="checkbox"]) { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
+
+.stash-dialog { width: min(680px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; }
+.stash-dialog label { display: block; margin: 12px 0; }
+.stash-dialog textarea { display: block; width: 100%; min-height: 90px; margin-top: 6px; background: #111a24; color: inherit; border: 1px solid #354858; }
+.stash-entries { padding-left: 20px; max-height: 40vh; overflow: auto; overflow-wrap: anywhere; font-size: 12px; }
+.stash-entries li { margin: 10px 0 18px; }
+.stash-dialog .dialog-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.stash-dialog button { background: #1a2a37; color: inherit; border: 1px solid #354858; border-radius: 4px; padding: 7px 12px; }
+.stash-dialog button:disabled { opacity: .5; }

@@ -11,7 +11,22 @@ pub fn reconcile(db: &Database, snapshot: &mut OperationSnapshot) -> Result<(), 
         snapshot.outcome = record.outcome.clone();
         return Ok(());
     }
-    let effects = if let Some(proof) = &record.sync_action {
+    let effects = if let Some(proof) = &mut record.stash_action {
+        // Restart inspects; it never replays Save/Apply or adopts an unrecorded pin.
+        proof.result.stash_retention = StashRetention::Unknown;
+        proof.result.recovery_ref_retention = StashRetention::Unknown;
+        proof.result.resolution = StashResolution::Inspect;
+        if record.phase == WritePhase::Prepared {
+            ActionEffects::NotApplied
+        } else if matches!(
+            proof.phase,
+            super::stash::StashPhase::Observed | super::stash::StashPhase::Conflict
+        ) {
+            proof.effects
+        } else {
+            ActionEffects::Unknown
+        }
+    } else if let Some(proof) = &record.sync_action {
         proof.effects()
     } else if let Some(proof) = &record.change_action {
         if matches!(

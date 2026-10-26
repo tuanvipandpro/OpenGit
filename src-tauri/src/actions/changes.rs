@@ -246,10 +246,7 @@ pub(crate) async fn capture(q: &ReadQuery<'_>) -> Result<Capture, AppError> {
         Ok(()) => false,
         Err(e) if e.code == ErrorCode::UnsupportedAction => true,
         Err(e) => return Err(e),
-    } || status
-        .entries
-        .iter()
-        .any(|e| e.kind == StatusEntryKind::Unmerged);
+    };
     let mut wire = Vec::new();
     let mut stamps = Vec::new();
     let mut digest = Sha256::new();
@@ -293,9 +290,11 @@ pub(crate) async fn capture(q: &ReadQuery<'_>) -> Result<Capture, AppError> {
             index_status: e.index_status.clone(),
             worktree_status: e.worktree_status.clone(),
             stage_capability: cap(e.worktree_status != PathStatus::Value0),
-            unstage_capability: cap(
-                e.index_status != PathStatus::Value0 && e.kind != StatusEntryKind::Untracked
-            ),
+            unstage_capability: if e.kind == StatusEntryKind::Unmerged {
+                ChangeCapability::Unsupported
+            } else {
+                cap(e.index_status != PathStatus::Value0 && e.kind != StatusEntryKind::Untracked)
+            },
         });
         stamps.push(stamp);
     }

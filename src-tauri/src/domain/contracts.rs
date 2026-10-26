@@ -2,6 +2,7 @@ pub use super::changes::*;
 pub use super::daily::*;
 pub use super::ref_actions::*;
 pub use super::remote_actions::*;
+pub use super::stash::*;
 pub use super::sync_actions::*;
 // Additive v0.2 history DTOs retain the foundation import surface.
 pub use super::history::*;

@@ -11,6 +11,7 @@ pub(crate) mod publication;
 pub mod recovery;
 pub(crate) mod ref_catalog;
 pub(crate) mod remote;
+pub(crate) mod stash;
 pub(crate) mod sync;
 use crate::{
     domain::contracts::*,
@@ -36,6 +37,7 @@ pub struct Actions {
     pub authority: authority::Authority,
     pub(crate) ref_catalogs: ref_catalog::Catalogs,
     pub(crate) change_catalogs: ref_catalog::Catalogs,
+    pub(crate) stash_catalogs: ref_catalog::Catalogs,
     pub(crate) remote_snapshots: Arc<remote::Snapshots>,
     pub reads: Arc<tokio::sync::Semaphore>,
     resources: Arc<AtomicUsize>,
@@ -51,6 +53,7 @@ impl Default for Actions {
             authority: Default::default(),
             ref_catalogs: Default::default(),
             change_catalogs: Default::default(),
+            stash_catalogs: Default::default(),
             remote_snapshots: Default::default(),
             reads: Arc::new(tokio::sync::Semaphore::new(4)),
             resources: Arc::new(AtomicUsize::new(0)),

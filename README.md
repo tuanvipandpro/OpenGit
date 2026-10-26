@@ -2,9 +2,15 @@
 
 Desktop Git client ưu tiên cây commit trực quan, quản lý nhiều branch và Hide/Solo theo repository. Trải nghiệm lấy cảm hứng từ GitKraken, với thiết kế và tài sản đồ họa riêng.
 
-**Trạng thái: đang triển khai 0.3.0.** GitHub `master` giữ baseline0.2.0 `ce5da58`; development ở `codex/0.3.0`. History/diff, commit thuộc nhánh nào, fetch/prune và private HTTPS/SSH đã có kiểm chứng native. UI branch/tag/upstream cũng đã qua source review và luồng Git thực tế.
+**Trạng thái: implementation 0.3.0 đã được nghiệm thu trên Windows.** GitHub `master` giữ baseline0.2.0 `ce5da58`; bản0.3.0 nằm trên `codex/0.3.0`. Gate3 độc lập đã PASS; chưa tạo tag/release hoặc installer phân phối.
 
-Changes có stage/unstage theo file, hunk và dòng text đủ điều kiện; commit và amend đã qua review cùng luồng native, gồm hook từ chối, giữ draft và bảo toàn staged/working edits. Chọn file giữ diff ổn định qua refresh thụ động; **Close diff** kết thúc phiên chọn. Amend phải bật rõ ràng, hỗ trợ chỉ đổi message; shallow repo chưa hỗ trợ amend. Sync có Push, Pull fast-forward và push/xóa tag remote; luồng HTTPS/SSH đã đối chiếu object/ref thực. Push hiển thị ACK có ngày riêng với local tracking: dùng Fetch để cập nhật counts và Local actions để đặt upstream. Đây là development checkpoint; Stash Save/Apply và nghiệm thu tích hợp vẫn phải hoàn tất trong0.3.0. Theo quyết định của người dùng, Pop/Drop chuyển sang0.4.0. Tiến độ và bằng chứng ở [task007](docs/tasks/007-implement-0.3.0.md), [plan](docs/plans/0.3.0.md) và [acceptance](docs/testing/0.3.0-acceptance.md). Chưa phát hành0.3.0 hoặc installer; enterprise GCM/OAuth/SSO được theo dõi riêng.
+History/diff, các nhánh chứa commit, fetch/prune, branch/tag/upstream và Push/Pull fast-forward đã qua review cùng luồng Git thực tế, gồm private HTTPS/SSH. Push hiển thị ACK có ngày riêng với local tracking: dùng Fetch để cập nhật counts và Local actions để đặt upstream.
+
+Changes hỗ trợ stage/unstage theo file, hunk và dòng text đủ điều kiện; commit/amend giữ hook, signing và draft khi lỗi. Chọn file giữ diff ổn định qua refresh thụ động; **Close diff** kết thúc phiên chọn. Amend phải bật rõ ràng, hỗ trợ chỉ đổi message; shallow repo chưa hỗ trợ amend.
+
+**Stash** có Save/Apply, untracked mặc định tắt và không lấy ignored files. Apply giữ stash, phục hồi working changes và không khôi phục staged partition cũ. Khi conflict: sửa file ngoài app → Stage từng file trong Changes → Reconcile stash. Reconcile chỉ kiểm tra trạng thái, không tự retry/reset/drop/commit. Stash0.3 hỗ trợ tracked files dạng regular; index có symlink/submodule hoặc dạng chưa chứng minh được sẽ bị từ chối rõ ràng. Thay đổi stash stack từ công cụ khác có thể làm Apply bị từ chối, giữ nguyên dữ liệu và recovery pin. Pop/Drop chuyển sang0.4.0 theo quyết định của người dùng.
+
+Bằng chứng và giới hạn ở [task007](docs/tasks/007-implement-0.3.0.md), [plan](docs/plans/0.3.0.md) và [acceptance](docs/testing/0.3.0-acceptance.md). Enterprise GCM/OAuth/SSO được theo dõi riêng; nghiệm thu này không đóng EXT-01 hoặc cam kết mọi cấu hình doanh nghiệp.
 
 ## Phạm vi sản phẩm
 
@@ -35,7 +41,7 @@ Git là nguồn dữ liệu chính cho lịch sử và trạng thái thao tác. 
 
 ## Phiên bản hiện tại
 
-`VERSION` hiện là `0.3.0`: target đang triển khai. Checkpoint0.2.0 là `ce5da58`; target mới không phải tuyên bố đã hoàn tất/phát hành. Xem [quy tắc đánh version](docs/versioning.md).
+`VERSION` vẫn là `0.3.0`, target đã hoàn tất implementation và nghiệm thu trong chu kỳ này. Checkpoint0.2.0 là `ce5da58`. Không tự tăng sang0.4.0 hoặc coi Git checkpoint là bản phát hành phân phối. Xem [quy tắc đánh version](docs/versioning.md).
 
 Mở repo để vào History; chọn commit rồi chọn file để xem diff và các nhánh chứa commit. Với merge commit, chọn parent cần so sánh. Bấm hoặc chuột phải nhãn branch/tag trên graph để View commit, Hide/Show, Add/Remove from Solo hoặc mở thao tác local branch/tag. Nút **Local actions** có tạo/chuyển/đổi tên/xóa branch, đặt upstream và tạo/xóa tag. Solo có thể gồm nhiều branch; **References** mở danh sách đầy đủ, kể cả nhánh bị ẩn. Search tìm commit ngoài bộ lọc mà không đổi bộ lọc. View, lựa chọn và vị trí cuộn được nhớ theo repo; linked worktrees dùng chung preferences. **Changes** chứa staged/unstaged, diff và luồng stage/commit đang nghiệm thu. Cherry-pick nằm ở0.4.0.
 
@@ -47,7 +53,7 @@ Refresh tự động khi có notification, focus hoặc sau thao tác liên quan
 | --- | --- | --- |
 | v0.1.0 | Workspace, mở/clone repo private, auth, task/error panel | Implementation candidate · under acceptance |
 | v0.2.0 | Graph, sidebar, commit/diff, search, Hide/Solo, persistence; quiet refresh/watchers | Implementation candidate · native verified; gate status in evidence |
-| v0.3.0 | Commit containment/remote evidence, fetch, branch/tag, stage/commit, stash, pull/push | Implementing · task007; not yet accepted |
+| v0.3.0 | Commit containment/remote evidence, fetch, branch/tag, partial stage/commit/amend, Stash Save/Apply, pull/push | Implementation accepted · Windows Gate3 PASS |
 | v0.4.0 | Merge, cherry-pick, rebase, conflict và recovery | Planned |
 | v0.5.0 | Cherry-pick giữa repository trong workspace | Planned |
 | v0.6.0 | LFS, submodule, worktree, signing UX, tương thích và hiệu năng | Planned |

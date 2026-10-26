@@ -23,8 +23,123 @@ struct ActionReadAccess {
     cancel: Cancellation,
     lifetime: Arc<dyn Send + Sync>,
 }
+#[cfg(windows)]
+struct StashChildAbort {
+    handle: tokio::task::AbortHandle,
+    cancel: Cancellation,
+    armed: bool,
+}
+#[cfg(windows)]
+impl Drop for StashChildAbort {
+    fn drop(&mut self) {
+        if self.armed {
+            // Scheduler timeout/drop must win before a child can pass its
+            // durable before-write gate or native before-resume callback.
+            self.cancel.cancel();
+            self.handle.abort();
+        }
+    }
+}
+#[cfg(all(test, windows))]
+mod stash_child_abort_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    struct MarkDrop(Arc<AtomicBool>);
+    impl Drop for MarkDrop {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::SeqCst);
+        }
+    }
+
+    async fn probe(shared_cancel: bool) -> (bool, bool, bool, bool, bool) {
+        let cancel = Cancellation::default();
+        let child_cancel = cancel.clone();
+        // A distinct guard token models the previous abort-only behavior.
+        let guard_cancel = if shared_cancel {
+            cancel.clone()
+        } else {
+            Cancellation::default()
+        };
+        let dropped = Arc::new(AtomicBool::new(false));
+        let child_dropped = dropped.clone();
+        let reached_gate = Arc::new(AtomicBool::new(false));
+        let child_reached_gate = reached_gate.clone();
+        let late_gate = Arc::new(AtomicBool::new(false));
+        let child_late_gate = late_gate.clone();
+        let release = Arc::new(AtomicBool::new(false));
+        let child_release = release.clone();
+        let (entered_tx, mut entered_rx) = tokio::sync::oneshot::channel();
+        let parent = async {
+            let child = tokio::spawn(async move {
+                let _mark = MarkDrop(child_dropped);
+                // Stay inside this Poll without awaiting. An abort request
+                // cannot stop synchronous code that is already executing.
+                entered_tx.send(std::thread::current()).unwrap();
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+                while !child_release.load(Ordering::SeqCst) && std::time::Instant::now() < deadline
+                {
+                    std::thread::park_timeout(std::time::Duration::from_millis(50));
+                }
+                child_reached_gate.store(true, Ordering::SeqCst);
+                if !child_cancel.is_cancelled() {
+                    child_late_gate.store(true, Ordering::SeqCst);
+                }
+            });
+            let mut abort = StashChildAbort {
+                handle: child.abort_handle(),
+                cancel: guard_cancel,
+                armed: true,
+            };
+            let joined = child.await;
+            abort.armed = false;
+            joined
+        };
+        let mut parent = Box::pin(parent);
+        let child_worker = tokio::select! {
+            value = &mut entered_rx => value.unwrap(),
+            _ = &mut parent => panic!("held child unexpectedly completed"),
+        };
+        let timed_out = tokio::time::timeout(std::time::Duration::from_millis(50), parent)
+            .await
+            .is_err();
+        let cancelled_before_release = cancel.is_cancelled();
+        let still_polling_before_release = !dropped.load(Ordering::SeqCst);
+        release.store(true, Ordering::SeqCst);
+        child_worker.unpark();
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            while !dropped.load(Ordering::SeqCst) {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        (
+            timed_out,
+            still_polling_before_release,
+            cancelled_before_release,
+            reached_gate.load(Ordering::SeqCst),
+            late_gate.load(Ordering::SeqCst),
+        )
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn parent_timeout_cancels_currently_polled_stash_child_before_late_gate() {
+        let old_abort_only = probe(false).await;
+        assert!(old_abort_only.0 && old_abort_only.1 && old_abort_only.3);
+        assert!(!old_abort_only.2);
+        assert!(old_abort_only.4, "abort alone permits the late write gate");
+
+        let guarded = probe(true).await;
+        assert!(guarded.0 && guarded.1 && guarded.3);
+        assert!(guarded.2, "drop must revoke the native gate synchronously");
+        assert!(!guarded.4, "shared cancellation closes the late write gate");
+    }
+}
 #[path = "actions/change_backend.rs"]
 mod change_backend;
+#[path = "actions/stash_backend.rs"]
+mod stash_backend;
 #[path = "actions/sync_backend.rs"]
 mod sync_backend;
 #[cfg(test)]
@@ -931,6 +1046,7 @@ impl Backend {
             | ActionIntent::StageSelection { .. }
             | ActionIntent::UnstageSelection { .. }
             | ActionIntent::Commit { .. } => {}
+            intent if crate::actions::stash::supported(intent.kind()) => {}
             intent if crate::actions::sync::supported(intent.kind()) => {}
             intent if crate::actions::ref_catalog::supported(intent.kind()) => {}
             _ => return Err(error(ErrorCode::UnsupportedAction, Phase::Validation)),
@@ -940,6 +1056,7 @@ impl Backend {
             Box::pin(async {
                 let access = if crate::actions::changes::supported(request.intent.kind())
                     || crate::actions::sync::supported(request.intent.kind())
+                    || crate::actions::stash::supported(request.intent.kind())
                 {
                     self.window(window)?;
                     let epoch = self.actions.authority.read_epoch(window, &request.scope)?;
@@ -1009,6 +1126,7 @@ impl Backend {
             && !crate::actions::ref_catalog::supported(kind)
             && !crate::actions::changes::supported(kind)
             && !crate::actions::sync::supported(kind)
+            && !crate::actions::stash::supported(kind)
         {
             return Err(error(ErrorCode::UnsupportedAction, Phase::Validation));
         }
@@ -1055,6 +1173,20 @@ impl Backend {
                         Box::pin(crate::actions::index::execute(context)).await
                     } else if context.intent.kind() == ActionKind::Commit {
                         Box::pin(crate::actions::commit::execute(context)).await
+                    } else if crate::actions::stash::supported(context.intent.kind()) {
+                        // Keep the nested stash poll off the scheduler's stack. A
+                        // timeout/drop of the parent must cancel this child too;
+                        // dropping JoinHandle alone would detach a mutating writer.
+                        let cancel = context.cancel.clone();
+                        let child = tokio::spawn(crate::actions::stash::execute(context, database));
+                        let mut abort = StashChildAbort {
+                            handle: child.abort_handle(),
+                            cancel,
+                            armed: true,
+                        };
+                        let joined = child.await;
+                        abort.armed = false;
+                        joined.map_err(|_| error(ErrorCode::Interrupted, Phase::Recovery))?
                     } else if crate::actions::sync::supported(context.intent.kind()) {
                         Box::pin(crate::actions::sync::execute(
                             context, database, auth, owner,
@@ -1271,7 +1403,7 @@ impl Backend {
                 &before.fingerprint,
             )
             .await?;
-            if before.unmerged {
+            if before.unmerged && !matches!(request.intent, ActionIntent::Stage { .. }) {
                 return Err(error(ErrorCode::UnsupportedAction, Phase::Validation));
             }
         }
@@ -1292,6 +1424,25 @@ impl Backend {
             crate::actions::sync::prepare(&q, &request.intent, &targets, &before.fingerprint)
                 .await?;
         }
+        let stash_action =
+            if inspect_changes && crate::actions::stash::supported(request.intent.kind()) {
+                let targets = self.actions.authority.resolved_targets(
+                    window,
+                    &request.scope,
+                    epoch,
+                    &request.intent,
+                    &before.fingerprint,
+                )?;
+                let q = crate::actions::catalog::ReadQuery::new(
+                    self.git()?,
+                    &location,
+                    lifetime.clone(),
+                    cancel.clone(),
+                );
+                Some(crate::actions::stash::prepare(&q, &request.intent, &targets).await?)
+            } else {
+                None
+            };
         let after =
             crate::actions::preflight::capture(self.git()?, &location, lifetime, &cancel).await?;
         if before.fingerprint != after.fingerprint {
@@ -1307,6 +1458,7 @@ impl Backend {
                 preflight: before,
                 targets: vec![],
                 ref_action,
+                stash_action,
                 execution_ticket: None,
                 epoch,
             },
@@ -1469,6 +1621,7 @@ impl Backend {
                         backend.history.sessions.revoke_repo(&repo);
                         backend.actions.ref_catalogs.revoke_repo(&repo);
                         backend.actions.change_catalogs.revoke_repo(&repo);
+                        backend.actions.stash_catalogs.revoke_repo(&repo);
                         backend.actions.remote_snapshots.revoke_repo(&repo);
                     }
                 }
@@ -1550,6 +1703,7 @@ impl Backend {
         self.actions.authority.revoke(window, true);
         self.actions.ref_catalogs.revoke(window);
         self.actions.change_catalogs.revoke(window);
+        self.actions.stash_catalogs.revoke(window);
         self.actions.remote_snapshots.revoke(window);
         self.scheduler.cancel_owned_actions(window, None);
         self.history.sessions.revoke_window(window, true);
@@ -1598,6 +1752,7 @@ impl Backend {
         self.actions.authority.revoke(window, false);
         self.actions.ref_catalogs.revoke(window);
         self.actions.change_catalogs.revoke(window);
+        self.actions.stash_catalogs.revoke(window);
         self.actions.remote_snapshots.revoke(window);
         self.scheduler.cancel_owned_actions(window, None);
         let item = discovery::discover(self.git()?, path).await?;
@@ -1609,6 +1764,7 @@ impl Backend {
         self.actions.authority.revoke(window, false);
         self.actions.ref_catalogs.revoke(window);
         self.actions.change_catalogs.revoke(window);
+        self.actions.stash_catalogs.revoke(window);
         self.actions.remote_snapshots.revoke(window);
         self.scheduler.cancel_owned_actions(window, None);
         self.history.sessions.revoke_window(window, false);
@@ -1627,6 +1783,7 @@ impl Backend {
         self.actions.authority.revoke(window, false);
         self.actions.ref_catalogs.revoke(window);
         self.actions.change_catalogs.revoke(window);
+        self.actions.stash_catalogs.revoke(window);
         self.actions.remote_snapshots.revoke(window);
         self.scheduler.cancel_owned_actions(window, None);
         let result = self.registry.select(&request)?;
@@ -1644,6 +1801,7 @@ impl Backend {
         self.actions.authority.revoke_repo(&request.repo_id);
         self.actions.ref_catalogs.revoke_repo(&request.repo_id);
         self.actions.change_catalogs.revoke_repo(&request.repo_id);
+        self.actions.stash_catalogs.revoke_repo(&request.repo_id);
         self.actions.remote_snapshots.revoke_repo(&request.repo_id);
         self.scheduler.cancel_repo_actions(&request.repo_id);
         let result = self.registry.forget(&request.repo_id)?;

@@ -417,7 +417,6 @@ pub fn policy(intent: &ActionIntent, state: &Preflight) -> Result<(), AppError> 
             ActionIntent::BranchSwitch { .. }
                 | ActionIntent::BranchCreate { checkout: true, .. }
                 | ActionIntent::Pull { .. }
-                | ActionIntent::StashApply { .. }
                 | ActionIntent::StashPop { .. }
         )
     {

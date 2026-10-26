@@ -72,7 +72,7 @@ export function createOperationsStore(api: Api = call, subscribeToEvents: Subscr
             ? await api('get_remote_action_outcome', { operationId: id }).then(response => response.ok ? { ok: true as const, value: { operation: response.value.operation, fetch: null, remoteReadResult: { availability: response.value.availability, evidence: response.value.evidence } } } : response).catch(() => ({ ok: false as const, error: transportError() }))
             : syncKinds.has(operation.actionKind ?? '')
             ? await api('get_sync_action_outcome',{operationId:id}).then(response=>response.ok?{ok:true as const,value:{operation:response.value.operation,fetch:null,syncResult:response.value.result}}:response).catch(()=>({ok:false as const,error:transportError()}))
-            : ['stage','unstage','commit'].includes(operation.actionKind ?? '')
+            : ['stage','unstage','stageSelection','unstageSelection','commit'].includes(operation.actionKind ?? '')
             ? await api('get_change_action_outcome', { operationId: id }).then(response => response.ok ? { ok: true as const, value: { operation: response.value.operation, fetch: null, changeResult: response.value.result } } : response).catch(() => ({ ok: false as const, error: transportError() }))
             : localRefKinds.has(operation.actionKind ?? '')
             ? await api('get_ref_action_outcome', { operationId: id }).then(response => response.ok ? { ok: true as const, value: { operation: response.value.operation, fetch: null, refResult: response.value.result } } : response).catch(() => ({ ok: false as const, error: transportError() }))

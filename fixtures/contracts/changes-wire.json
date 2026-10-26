@@ -75,11 +75,12 @@
       "worktreeId": "tree",
       "generation": "9007199254740993"
     },
-    "partialEligibility": "Whole-file actions only",
+    "partialEligibility": "filePresenceOnly",
     "hunks": [],
     "diffId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
     "content": "+fixture preview",
-    "changeHandle": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    "changeHandle": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "side": "unstaged"
   },
   "result": {
     "operation": {

@@ -58,6 +58,17 @@ mod desktop {
         }
     }
     #[tauri::command]
+    async fn resolve_change_selection(
+        request: ResolveChangeSelectionRequest,
+        window: WebviewWindow,
+        app: tauri::AppHandle,
+    ) -> ApiResult<ResolvedChangeSelection> {
+        match backend(&app) {
+            Ok(s) => result(s.resolve_change_selection(window.label(), request).await),
+            Err(e) => ApiResult::Failure(e),
+        }
+    }
+    #[tauri::command]
     async fn get_repository_changes(
         request: GetRepositoryChangesRequest,
         window: WebviewWindow,
@@ -649,6 +660,7 @@ mod desktop {
                 }
             })
             .invoke_handler(tauri::generate_handler![
+                resolve_change_selection,
                 get_sync_action_outcome,
                 get_publication_evidence,
                 get_repository_changes,

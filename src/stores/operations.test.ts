@@ -10,6 +10,18 @@ const result = (value: OperationSnapshot, prune = false): ActionOperationResult 
 const failure: AppError = { code: 'Internal', phase: 'inspection', retry: 'retry', message: 'Result unavailable' };
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 
+it.each(['stageSelection', 'unstageSelection'] as const)('S5-B retains %s structured change outcome and retires it on removal', async kind => {
+  const value: OperationSnapshot = { ...action('partial'), actionKind: kind };
+  const changeResult = { commitOid: null, treeOid: null, failureReason: 'stale', artifactsRetained: true };
+  let next: OperationsSnapshot = { streamId: 'partial', sequence: '1', operations: [value] };
+  const api = vi.fn(async (command: string) => command === 'get_operations' ? { ok: true, value: next } : { ok: true, value: { operation: value, result: changeResult } }) as unknown as Api;
+  const store = createOperationsStore(api); await store.getState().sync(); await store.getState().loadOutcome(value.id);
+  expect(api).toHaveBeenCalledWith('get_change_action_outcome', { operationId: value.id });
+  expect(store.getState().outcomes[value.id].changeResult).toEqual(changeResult);
+  next = { ...next, sequence: '2', operations: [] }; await store.getState().sync();
+  expect(store.getState().outcomes).toEqual({});
+});
+
 it.each(['push', 'pull', 'remoteTagPush', 'remoteTagDelete'] as const)('Sync routes %s outcomes and retires cached evidence on compaction', async kind => {
   const value: OperationSnapshot = { ...action('sync'), actionKind: kind }, syncResult = { steps: [], publication: null, trackingUpdated: false, upstreamUpdated: false, trackingRefreshRequired: true, fetchedOid: null, integratedOid: null };
   let next: OperationsSnapshot = { streamId: 'sync', sequence: '1', operations: [value] };

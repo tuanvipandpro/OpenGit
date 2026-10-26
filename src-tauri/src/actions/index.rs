@@ -220,6 +220,16 @@ pub(crate) async fn native(
     input: Option<&[u8]>,
     guard: String,
 ) -> Result<crate::git::runner::GitOutput, AppError> {
+    native_with_attributes(c, args, index, input, guard, vec![]).await
+}
+async fn native_with_attributes(
+    c: &ActionContext,
+    args: &[std::ffi::OsString],
+    index: Option<TrustedOwnedIndex>,
+    input: Option<&[u8]>,
+    guard: String,
+    attributes: Vec<super::patch::AttributeGuard>,
+) -> Result<crate::git::runner::GitOutput, AppError> {
     let location = c.location.clone();
     let targets = c.targets.clone();
     let intent = c.intent.clone();
@@ -244,6 +254,7 @@ pub(crate) async fn native(
                 return Err(changes::changed());
             }
             changes::validate_targets(&location, &intent, &targets)?;
+            super::patch::validate_attributes(&attributes)?;
             Ok(())
         }));
     }
@@ -288,6 +299,17 @@ pub(crate) async fn execute(c: ActionContext) -> Result<Completion, AppError> {
     changes::validate_targets(&c.location, &c.intent, &c.targets)?;
     let before = changes::capture(&q).await?;
     let before_native = preflight::native_stamp(&c.location)?;
+    let partial = matches!(
+        c.intent,
+        ActionIntent::StageSelection { .. } | ActionIntent::UnstageSelection { .. }
+    );
+    let candidates =
+        super::patch::prepare_candidates(&q, &c.intent, &c.targets, &c.precondition.fingerprint)
+            .await?;
+    let attribute_guards = candidates
+        .iter()
+        .map(|c| c.attrs.clone())
+        .collect::<Vec<_>>();
     if !c.before_write().await? {
         return Err(error(ErrorCode::Interrupted, Phase::Publish));
     }
@@ -334,46 +356,125 @@ pub(crate) async fn execute(c: ActionContext) -> Result<Completion, AppError> {
             .iter()
             .cloned()
             .collect::<std::collections::HashSet<_>>();
-        let mut args = if matches!(c.intent, ActionIntent::Stage { .. }) {
-            argv(&["--literal-pathspecs", "add", "-A", "--"])
-        } else if p.before_head.is_some() {
-            argv(&["--literal-pathspecs", "reset", "--quiet", "HEAD", "--"])
-        } else {
-            argv(&[
-                "--literal-pathspecs",
-                "update-index",
-                "--force-remove",
-                "--",
-            ])
-        };
-        for raw in &paths {
-            args.push(
-                std::str::from_utf8(raw)
-                    .map_err(|_| changes::unsupported())?
-                    .into(),
-            );
-        }
         let original_entries = changes::run(&q, &argv(&["ls-files", "--stage", "-z"])).await?;
-        let owned = TrustedOwnedIndex::new(alt.clone(), artifacts[0].identity.clone())?;
-        let output = native(&c, &args, Some(owned), None, before_native.clone()).await?;
-        #[cfg(test)]
-        pause(&c.resources.index_test.after_native).await;
-        if !output.success {
-            return Err(crate::git::error::git_failure(
-                &output.stderr,
-                Phase::Publish,
-            ));
+        let mut expected_selected = std::collections::BTreeMap::new();
+        if partial {
+            for prepared in &candidates {
+                let owned = TrustedOwnedIndex::new(alt.clone(), identity(&alt)?)?;
+                let output = if prepared.candidate.exists {
+                    let hash = native_with_attributes(
+                        &c,
+                        &argv(&["hash-object", "--no-filters", "-w", "--stdin"]),
+                        Some(owned.clone()),
+                        Some(&prepared.candidate.bytes),
+                        before_native.clone(),
+                        attribute_guards.clone(),
+                    )
+                    .await?;
+                    if !hash.success {
+                        return Err(changes::unsupported());
+                    }
+                    let oid = String::from_utf8(hash.stdout)
+                        .map_err(|_| io_error())?
+                        .trim()
+                        .to_owned();
+                    if !matches!(oid.len(), 40 | 64) || !oid.bytes().all(|b| b.is_ascii_hexdigit())
+                    {
+                        return Err(changes::changed());
+                    }
+                    expected_selected.insert(
+                        prepared.path.clone(),
+                        format!("{:o} {oid} 0", prepared.mode).into_bytes(),
+                    );
+                    let value = format!(
+                        "{:o},{oid},{}",
+                        prepared.mode,
+                        std::str::from_utf8(&prepared.path).map_err(|_| changes::unsupported())?
+                    );
+                    native_with_attributes(
+                        &c,
+                        &argv(&["update-index", "--add", "--cacheinfo", &value]),
+                        Some(owned),
+                        None,
+                        before_native.clone(),
+                        attribute_guards.clone(),
+                    )
+                    .await?
+                } else {
+                    native_with_attributes(
+                        &c,
+                        &argv(&[
+                            "--literal-pathspecs",
+                            "update-index",
+                            "--force-remove",
+                            "--",
+                            std::str::from_utf8(&prepared.path)
+                                .map_err(|_| changes::unsupported())?,
+                        ]),
+                        Some(owned),
+                        None,
+                        before_native.clone(),
+                        attribute_guards.clone(),
+                    )
+                    .await?
+                };
+                if !output.success {
+                    return Err(crate::git::error::git_failure(
+                        &output.stderr,
+                        Phase::Publish,
+                    ));
+                }
+            }
+        } else {
+            let mut args = if matches!(c.intent, ActionIntent::Stage { .. }) {
+                argv(&["--literal-pathspecs", "add", "-A", "--"])
+            } else if p.before_head.is_some() {
+                argv(&["--literal-pathspecs", "reset", "--quiet", "HEAD", "--"])
+            } else {
+                argv(&[
+                    "--literal-pathspecs",
+                    "update-index",
+                    "--force-remove",
+                    "--",
+                ])
+            };
+            for raw in &paths {
+                args.push(
+                    std::str::from_utf8(raw)
+                        .map_err(|_| changes::unsupported())?
+                        .into(),
+                );
+            }
+            let owned = TrustedOwnedIndex::new(alt.clone(), artifacts[0].identity.clone())?;
+            let output = native_with_attributes(
+                &c,
+                &args,
+                Some(owned),
+                None,
+                before_native.clone(),
+                attribute_guards.clone(),
+            )
+            .await?;
+            #[cfg(test)]
+            pause(&c.resources.index_test.after_native).await;
+            if !output.success {
+                return Err(crate::git::error::git_failure(
+                    &output.stderr,
+                    Phase::Publish,
+                ));
+            }
         }
         // Only a successful, quiescent native replacement can be inspected as
         // a candidate. Keep cleanup ownership unchanged until it is verified.
         let actual = identity(&alt)?;
         let owned = TrustedOwnedIndex::new(alt.clone(), actual)?;
-        let listed = native(
+        let listed = native_with_attributes(
             &c,
             &argv(&["ls-files", "--stage", "-z"]),
             Some(owned.clone()),
             None,
             before_native.clone(),
+            attribute_guards.clone(),
         )
         .await?;
         if !listed.success {
@@ -399,12 +500,22 @@ pub(crate) async fn execute(c: ActionContext) -> Result<Completion, AppError> {
         if untouched(&original_entries, &selected)? != untouched(&listed.stdout, &selected)? {
             return Err(changes::changed());
         }
-        let tree = native(
+        if partial {
+            let selected_actual = untouched(&listed.stdout, &std::collections::HashSet::new())?
+                .into_iter()
+                .filter(|(p, _)| selected.contains(p))
+                .collect::<std::collections::BTreeMap<_, _>>();
+            if selected_actual != expected_selected {
+                return Err(changes::changed());
+            }
+        }
+        let tree = native_with_attributes(
             &c,
             &argv(&["write-tree"]),
             Some(owned),
             None,
             before_native.clone(),
+            attribute_guards.clone(),
         )
         .await?;
         if !tree.success {
@@ -447,6 +558,7 @@ pub(crate) async fn execute(c: ActionContext) -> Result<Completion, AppError> {
             return Err(changes::changed());
         }
         changes::validate_targets(&c.location, &c.intent, &c.targets)?;
+        super::patch::validate_attributes(&attribute_guards)?;
         let state =
             preflight::capture(q.runner, &c.location, q.lifetime.clone(), &c.cancel).await?;
         if state.fingerprint != c.precondition.fingerprint {
@@ -474,6 +586,7 @@ pub(crate) async fn execute(c: ActionContext) -> Result<Completion, AppError> {
             return Err(changes::changed());
         }
         changes::validate_targets(&c.location, &c.intent, &c.targets)?;
+        super::patch::validate_attributes(&attribute_guards)?;
         c.check_owner()?;
         if c.cancel.is_cancelled() {
             return Err(error(ErrorCode::Interrupted, Phase::Publish));
@@ -486,6 +599,7 @@ pub(crate) async fn execute(c: ActionContext) -> Result<Completion, AppError> {
             return Err(changes::changed());
         }
         changes::validate_targets(&c.location, &c.intent, &c.targets)?;
+        super::patch::validate_attributes(&attribute_guards)?;
         c.check_owner()?;
         if c.cancel.is_cancelled() {
             return Err(error(ErrorCode::Interrupted, Phase::Publish));
@@ -563,6 +677,146 @@ pub(crate) async fn execute(c: ActionContext) -> Result<Completion, AppError> {
 mod tests {
     use super::*;
     use crate::backend::Backend;
+    #[tokio::test]
+    async fn partial_attributes_changed_after_candidate_reject_publication_without_working_or_real_index_writes(
+    ) {
+        for mode in ["attributes", "file", "index", "head", "config"] {
+            let (_dir, b, s, l) = fixture().await;
+            git(&b, &l, &["config", "core.autocrlf", "false"]).await;
+            std::fs::write(l.root.join(".gitattributes"), b"*.txt -text\n").unwrap();
+            let catalog = b
+                .get_repository_changes("main", GetRepositoryChangesRequest { scope: s.clone() })
+                .await
+                .unwrap();
+            let entry = catalog
+                .entries
+                .iter()
+                .find(|e| e.path_display == "target Ω.txt")
+                .unwrap();
+            let target = b
+                .resolve_change_targets(
+                    "main",
+                    ResolveChangeTargetsRequest {
+                        scope: s.clone(),
+                        catalog_id: catalog.catalog_id,
+                        targets: vec![ChangeSelection {
+                            entry_id: entry.entry_id.clone(),
+                            side: ChangeSide::Unstaged,
+                        }],
+                    },
+                )
+                .await
+                .unwrap();
+            let d = b
+                .get_change_diff(
+                    "main",
+                    GetChangeDiffRequest {
+                        scope: s.clone(),
+                        change_handle: target.targets[0].change_handle.clone(),
+                    },
+                )
+                .await
+                .unwrap();
+            assert_eq!(d.partial_eligibility, PartialEligibility::Eligible, "{d:?}");
+            let resolved = b
+                .resolve_change_selection(
+                    "main",
+                    ResolveChangeSelectionRequest {
+                        scope: s.clone(),
+                        change_handle: d.change_handle,
+                        diff_id: d.diff_id,
+                        selection: ChangeSelectionInput::Hunks {
+                            hunk_ids: vec![d.hunks[0].hunk_id.clone()],
+                        },
+                    },
+                )
+                .await
+                .unwrap();
+            let p = b
+                .prepare_repository_action(
+                    "main",
+                    PrepareRepositoryActionRequest {
+                        scope: s.clone(),
+                        intent: ActionIntent::StageSelection {
+                            selection_handles: vec![resolved.selection_handle],
+                        },
+                    },
+                )
+                .await
+                .unwrap();
+            let pause = Arc::new(TestPause::default());
+            *b.actions.index_test.candidate.lock().unwrap() = Some(pause.clone());
+            let op = b
+                .execute_repository_action(
+                    "main",
+                    ExecuteRepositoryActionRequest { plan_id: p.plan_id },
+                )
+                .unwrap();
+            tokio::time::timeout(std::time::Duration::from_secs(60), pause.entered.notified())
+                .await
+                .unwrap();
+            match mode {
+                "attributes" => {
+                    std::fs::write(l.root.join(".gitattributes"), b"*.txt text eol=lf\n").unwrap();
+                }
+                "file" => {
+                    std::fs::write(l.root.join("target Ω.txt"), b"external selected content\n")
+                        .unwrap();
+                }
+                "index" => {
+                    std::fs::write(l.root.join("external.txt"), b"external staged\n").unwrap();
+                    git(&b, &l, &["add", "--", "external.txt"]).await;
+                }
+                "head" => {
+                    git(
+                        &b,
+                        &l,
+                        &[
+                            "-c",
+                            "user.name=Fixture",
+                            "-c",
+                            "user.email=fixture@example.invalid",
+                            "commit",
+                            "--allow-empty",
+                            "-m",
+                            "external HEAD",
+                        ],
+                    )
+                    .await;
+                }
+                "config" => {
+                    git(&b, &l, &["config", "core.filemode", "true"]).await;
+                }
+                _ => unreachable!(),
+            }
+            let expected_index = bytes(&l.git_dir.join("index")).unwrap();
+            let expected_work = fs::read(l.root.join("target Ω.txt")).unwrap();
+            pause.release.notify_one();
+            let r = finished(&b, &op.id).await;
+            assert_ne!(
+                r.operation.outcome.as_ref().unwrap().effects,
+                ActionEffects::Applied,
+                "{mode}: {r:?}"
+            );
+            assert_eq!(
+                bytes(&l.git_dir.join("index")).unwrap(),
+                expected_index,
+                "{mode}"
+            );
+            assert_eq!(
+                fs::read(l.root.join("target Ω.txt")).unwrap(),
+                expected_work
+            );
+            assert_eq!(
+                fs::read(l.root.join(".gitattributes")).unwrap(),
+                if mode == "attributes" {
+                    b"*.txt text eol=lf\n".as_slice()
+                } else {
+                    b"*.txt -text\n".as_slice()
+                }
+            );
+        }
+    }
     async fn fixture() -> (
         tempfile::TempDir,
         Arc<Backend>,

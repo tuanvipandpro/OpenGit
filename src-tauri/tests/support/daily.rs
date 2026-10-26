@@ -206,6 +206,11 @@ use std::io::Write;
 fn main(){{let args=std::env::args_os().skip(1).collect::<Vec<_>>();let mode=std::fs::read_to_string({mode:?}).unwrap();
 let fetch=args.iter().any(|v|v=="fetch");let dry=args.iter().any(|v|v=="--dry-run");
 let read=args.iter().any(|v|v=="ls-remote");
+if mode=="amend-shallow-hold"&&args.iter().any(|v|v=="--is-shallow-repository"){{
+let output=std::process::Command::new({git:?}).args(&args).output().unwrap();
+std::fs::write({ready:?},b"shallow read completed").unwrap();while !std::path::Path::new({release:?}).exists(){{std::thread::sleep(std::time::Duration::from_millis(5));}}
+std::io::stdout().write_all(&output.stdout).unwrap();std::io::stderr().write_all(&output.stderr).unwrap();std::process::exit(output.status.code().unwrap_or(1));
+}}
 if args.iter().any(|v|v=="push")&&(mode=="push-lost-ack"||mode=="push-applied-hold"){{
 let output=std::process::Command::new({git:?}).args(&args).output().unwrap();
 if output.status.success(){{let mut marker=std::fs::OpenOptions::new().create(true).append(true).open({fetched:?}).unwrap();marker.write_all(b"pushed\n").unwrap();}}
@@ -229,7 +234,9 @@ if fetch&&!dry{{match mode.as_str(){{
 "hold"=>{{std::fs::write({ready:?},b"ready").unwrap();while !std::path::Path::new({release:?}).exists(){{std::thread::sleep(std::time::Duration::from_millis(5));}}}},_=>()}}
 }}
 if mode=="verifyhold"&&std::path::Path::new({fetched:?}).exists()&&args.iter().any(|v|v=="worktree"){{std::fs::write({ready:?},b"ready").unwrap();while !std::path::Path::new({release:?}).exists(){{std::thread::sleep(std::time::Duration::from_millis(5));}}}}
-let status=std::process::Command::new({git:?}).args(&args).status().unwrap();
+let mut command=std::process::Command::new({git:?});command.args(&args);
+if mode=="amend-noop"&&args.iter().any(|v|v=="--amend"){{let at=args.iter().position(|v|v=="commit").unwrap();let out=std::process::Command::new({git:?}).args(&args[..at]).args(["show","-s","--format=%cI","HEAD"]).output().unwrap();assert!(out.status.success());command.env("GIT_COMMITTER_DATE",String::from_utf8(out.stdout).unwrap().trim());}}
+let status=command.status().unwrap();
 if fetch&&!dry&&status.success(){{let mut file=std::fs::OpenOptions::new().create(true).append(true).open({fetched:?}).unwrap();file.write_all(b"applied\n").unwrap();}}
 std::process::exit(status.code().unwrap_or(1));}}
 "#,

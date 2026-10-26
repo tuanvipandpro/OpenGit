@@ -928,7 +928,9 @@ impl Backend {
             ActionIntent::ReadRemoteRefs { .. } => {}
             ActionIntent::Stage { .. }
             | ActionIntent::Unstage { .. }
-            | ActionIntent::Commit { amend: false, .. } => {}
+            | ActionIntent::StageSelection { .. }
+            | ActionIntent::UnstageSelection { .. }
+            | ActionIntent::Commit { .. } => {}
             intent if crate::actions::sync::supported(intent.kind()) => {}
             intent if crate::actions::ref_catalog::supported(intent.kind()) => {}
             _ => return Err(error(ErrorCode::UnsupportedAction, Phase::Validation)),
@@ -1045,7 +1047,10 @@ impl Backend {
                         crate::actions::fetch::execute(context, database, auth, owner).await
                     } else if matches!(
                         context.intent,
-                        ActionIntent::Stage { .. } | ActionIntent::Unstage { .. }
+                        ActionIntent::Stage { .. }
+                            | ActionIntent::Unstage { .. }
+                            | ActionIntent::StageSelection { .. }
+                            | ActionIntent::UnstageSelection { .. }
                     ) {
                         Box::pin(crate::actions::index::execute(context)).await
                     } else if context.intent.kind() == ActionKind::Commit {
@@ -1259,6 +1264,13 @@ impl Backend {
                 cancel.clone(),
             );
             crate::actions::commit::prepare(&query, &request.intent).await?;
+            crate::actions::patch::prepare_candidates(
+                &query,
+                &request.intent,
+                &targets,
+                &before.fingerprint,
+            )
+            .await?;
             if before.unmerged {
                 return Err(error(ErrorCode::UnsupportedAction, Phase::Validation));
             }

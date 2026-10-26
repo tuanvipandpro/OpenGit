@@ -79,8 +79,75 @@ pub struct ChangeDiff {
     pub change_handle: Id,
     pub diff_id: Id,
     pub content: String,
-    pub partial_eligibility: String,
-    pub hunks: Vec<String>,
+    pub side: ChangeSide,
+    pub partial_eligibility: PartialEligibility,
+    pub hunks: Vec<ChangeHunk>,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PartialEligibility {
+    Eligible,
+    Binary,
+    Encoding,
+    LineEndings,
+    Attributes,
+    Rename,
+    Mode,
+    TooLarge,
+    ComplexityLimit,
+    FilePresenceOnly,
+    Unsupported,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ChangeRowKind {
+    Context,
+    Add,
+    Delete,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ChangeDiffRow {
+    pub line_id: Option<Id>,
+    pub kind: ChangeRowKind,
+    pub old_line: Option<u32>,
+    pub new_line: Option<u32>,
+    pub text: String,
+    pub has_lf: bool,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ChangeHunk {
+    pub hunk_id: Id,
+    pub rows: Vec<ChangeDiffRow>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
+pub enum ChangeSelectionInput {
+    Hunks {
+        #[serde(rename = "hunkIds")]
+        hunk_ids: Vec<Id>,
+    },
+    Lines {
+        #[serde(rename = "lineIds")]
+        line_ids: Vec<Id>,
+    },
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ResolveChangeSelectionRequest {
+    pub scope: ActionScope,
+    pub change_handle: Id,
+    pub diff_id: Id,
+    pub selection: ChangeSelectionInput,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ResolvedChangeSelection {
+    pub scope: ActionScope,
+    pub change_handle: Id,
+    pub diff_id: Id,
+    pub selection_handle: Id,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

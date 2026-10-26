@@ -5,6 +5,7 @@ pub(crate) mod containment;
 pub(crate) mod fetch;
 pub mod journal;
 pub(crate) mod observations;
+pub(crate) mod patch;
 pub mod preflight;
 pub(crate) mod publication;
 pub mod recovery;

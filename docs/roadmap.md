@@ -55,7 +55,7 @@ Implementation packets and validation for this scope are recorded in the0.2.0 pl
 - Fetch one/all remotes, optional prune; create/rename/switch/delete branches and tracking setup.
 - Create lightweight/annotated tags; explicit local versus remote push/delete targets.
 - Stage/unstage file, hunk, eligible text lines; commit/amend and hook/signing error visibility.
-- Stash/apply/pop with conflict detection and a minimal resolve/abort path; full resolver in v0.4.0.
+- Stash Save/Apply with conflict detection and external resolve → stage → reconcile; Apply keeps the stash. User-approved scope moves Pop/Drop to v0.4.0; no unsupported stash abort.
 - Push, upstream setup and ahead/behind state; fast-forward-only pull initially.
 - Explain divergence instead of silently choosing merge/rebase; full strategies arrive in v0.4.0.
 - Preflight dirty state and existing operation; report actual results and failures.
@@ -64,6 +64,7 @@ Acceptance: commit containment matches real ancestry in full histories and repor
 
 ## v0.4.0 — Integration and recovery
 
+- Stash Pop/Drop with proven expected-entry safety against external stack changes; no positional consume based only on a prior check.
 - Fast-forward/normal/squash merge and pull merge/rebase strategies.
 - Single/multiple commit cherry-pick with explicit order; merge-commit mainline selection.
 - Rebase and interactive reorder/reword/squash/fixup/drop.

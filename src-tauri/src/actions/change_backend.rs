@@ -1,5 +1,106 @@
 use super::*;
 impl Backend {
+    pub async fn resolve_change_selection(
+        &self,
+        window: &str,
+        request: ResolveChangeSelectionRequest,
+    ) -> Result<ResolvedChangeSelection, AppError> {
+        self.window(window)?;
+        validation::request_size(&request)?;
+        tokio::time::timeout(std::time::Duration::from_secs(30), async {
+            let epoch = self.actions.authority.read_epoch(window, &request.scope)?;
+            let location = self
+                .registry
+                .location(&request.scope.repo_id, request.scope.worktree_id.as_deref())?;
+            let access = self
+                .action_read_scope_existing(window, &request.scope, location, epoch)
+                .await?;
+            let before = crate::actions::preflight::capture(
+                self.git()?,
+                &access.location,
+                access.lifetime.clone(),
+                &access.cancel,
+            )
+            .await?;
+            let (target, expires) = self.actions.authority.change_grant(
+                window,
+                &request.scope,
+                epoch,
+                &request.change_handle,
+                &before.fingerprint,
+            )?;
+            let (side, _) = crate::actions::changes::paths(&target)?;
+            let intent = if side == ChangeSide::Unstaged {
+                ActionIntent::Stage {
+                    change_handles: vec![request.change_handle.clone()],
+                }
+            } else {
+                ActionIntent::Unstage {
+                    change_handles: vec![request.change_handle.clone()],
+                }
+            };
+            crate::actions::changes::validate_targets(
+                &access.location,
+                &intent,
+                std::slice::from_ref(&target),
+            )?;
+            let q = crate::actions::catalog::ReadQuery::new(
+                self.git()?,
+                &access.location,
+                access.lifetime.clone(),
+                access.cancel.clone(),
+            );
+            let data = crate::actions::patch::capture(
+                &q,
+                &target,
+                &request.change_handle,
+                &before.fingerprint,
+            )
+            .await?;
+            if data.diff_id != request.diff_id {
+                return Err(crate::actions::changes::invalid());
+            }
+            let selected = data.select(&request.selection)?;
+            let selection = crate::actions::patch::selection_target(
+                &target,
+                &request.change_handle,
+                &data,
+                &selected,
+            )?;
+            let after = crate::actions::preflight::capture(
+                self.git()?,
+                &access.location,
+                access.lifetime.clone(),
+                &access.cancel,
+            )
+            .await?;
+            if before.fingerprint != after.fingerprint {
+                return Err(crate::actions::changes::changed());
+            }
+            crate::actions::changes::validate_targets(
+                &access.location,
+                &intent,
+                std::slice::from_ref(&target),
+            )?;
+            let handle = self.actions.authority.issue_until(
+                window,
+                &request.scope,
+                epoch,
+                selection,
+                before.fingerprint,
+                Some(expires),
+                || self.action_registration(&request.scope, &access.location),
+            )?;
+            Ok(ResolvedChangeSelection {
+                scope: request.scope,
+                change_handle: request.change_handle,
+                diff_id: request.diff_id,
+                selection_handle: handle,
+            })
+        })
+        .await
+        .map_err(|_| error(ErrorCode::Timeout, Phase::Inspection))?
+    }
     pub async fn resolve_change_targets(
         &self,
         window: &str,
@@ -220,7 +321,15 @@ impl Backend {
             access.lifetime.clone(),
             access.cancel.clone(),
         );
-        let content = crate::actions::changes::diff(&q, target).await?;
+        let data =
+            crate::actions::patch::capture(&q, target, &request.change_handle, &before.fingerprint)
+                .await?;
+        let content = if data.eligibility == PartialEligibility::TooLarge {
+            "Diff exceeds the partial display limit. Whole-file actions remain available.".into()
+        } else {
+            crate::actions::changes::diff(&q, target).await?
+        };
+        let hunks = data.hunks()?;
         let after = crate::actions::preflight::capture(
             self.git()?,
             &access.location,
@@ -237,7 +346,17 @@ impl Backend {
             .checked(window, &request.scope, epoch, || {
                 self.action_registration(&request.scope, &access.location)
             })?;
-        Ok(ChangeDiff{scope:request.scope,change_handle:request.change_handle,diff_id:crate::history::sessions::token(),content,partial_eligibility:"Whole-file actions are available. Hunk and line selection are not available in this view yet.".into(),hunks:vec![]})
+        let result = ChangeDiff {
+            scope: request.scope,
+            change_handle: request.change_handle,
+            diff_id: data.diff_id,
+            side,
+            content,
+            partial_eligibility: data.eligibility,
+            hunks,
+        };
+        crate::actions::catalog::bounded_response(&result)?;
+        Ok(result)
     }
     pub fn get_change_action_outcome(
         &self,

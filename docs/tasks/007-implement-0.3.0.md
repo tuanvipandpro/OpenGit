@@ -2,9 +2,9 @@
 
 ## Intake
 
-- Status: baseline0.2.0 published to GitHub master;0.3.0 local branch/tag UI independently reviewed and native checks running. Containment/fetch/private transport milestones passed. S5-A stage/commit backend+UI is implementing; push/pull/partial-amend/stash remain. User requested faster usable slices and version-branch push after checks.
+- Status: baseline0.2.0 is published on GitHub master. Containment/fetch/private transport, local branch/tag/upstream, whole-file and partial stage/commit/amend and Sync push/FF-pull/remote tags have independently reviewed native milestones. Latest published development checkpoint02407a0 precedes the checked S5-B slice awaiting checkpoint. Stash Save/Apply and final integrated acceptance remain. User requested faster usable slices and version-branch push after checks.
 - Preceding accepted requirement: selecting a commit must show local/remote branches that contain it, current branch/upstream inclusion and truthful remote publication evidence with fetch freshness. Tip decorations are not containment. No observed remote branch is not proof of never pushed; shallow/incomplete ancestry and failed fetch can mean unknown.
-- Authorized checkpoint complete: `ce5da58` on main, `feat: checkpoint OpenGit 0.2.0 graph and repository views`, author tuanvipandpro <tuanvipandpro@gmail.com>; working tree was clean afterward. No push/tag/release. Subsequent work branch `codex/0.3.0`.
+- Authorized baseline checkpoint: `ce5da58`, `feat: checkpoint OpenGit 0.2.0 graph and repository views`, author tuanvipandpro <tuanvipandpro@gmail.com>. Later explicitly pushed as remote master/default at the user's request; subsequent work branch `codex/0.3.0`. No tag/release.
 - Baseline VERSION0.2.0; current planned target/manifests0.3.0, minor feature increment synchronized by shared owner. Planned target is not release evidence.
 - Scope: full0.3.0 roadmap R3/R6 plus per-commit branch containment/publication context requested above. Explicit order: containment/sync/fetch first, then daily Git workflows.
 - Non-goals:0.4 merge/cherry-pick/rebase/full conflict editor/recovery,0.5 cross-repository transfer, installer/signing/publication. Existing external-provider EXT-01 remains distinct.
@@ -18,10 +18,10 @@
 | --- | --- | --- | --- |
 | AC1 | Selected commit lists local/remote containing branches independent of visible graph/filter/page, current/upstream inclusion and precise known/unknown remote state | Actual Git ancestry/remote/shallow fixtures plus UI races | VERIFIED milestone; final integration retained |
 | AC2 | Explicit fetch one/all remotes, opt-in prune, truthful completion/failure and freshness evidence scoped to relevant remote | Owned authenticated/local remotes; partial failure/cancel/external changes | VERIFIED milestone; final integration retained |
-| AC3 | Create/rename/switch/delete branches and tracking safely, create lightweight/annotated tags and explicit local/remote actions | Disposable repositories, dirty state/linked worktrees/invalid refs/stale preconditions | PENDING |
-| AC4 | Stage/unstage file, eligible hunk/line operations and commit/amend with hook/signing errors visible; no lost unrelated work | Actual index/worktree fixtures including partial staging/binary/unusual paths/failures | IMPLEMENTING A whole-file/commit; B partial/amend next |
-| AC5 | Stash/apply/pop and minimal conflict/abort handling with accurate operation state and preserved recovery evidence | Clean/conflicting/interrupted disposable fixtures and restart | PENDING |
-| AC6 | Push/upstream/ahead-behind and fast-forward-only pull, divergence/rejection shown without silently choosing strategy | Owned remote roundtrip, rejected push/divergence/auth/cancel/restart | PENDING |
+| AC3 | Create/rename/switch/delete branches and tracking safely, create lightweight/annotated tags and explicit local/remote actions | Disposable repositories, dirty state/linked worktrees/invalid refs/stale preconditions | VERIFIED milestone; final integration retained |
+| AC4 | Stage/unstage file, eligible hunk/line operations and commit/amend with hook/signing errors visible; no lost unrelated work | Actual index/worktree fixtures including partial staging/binary/unusual paths/failures | A and B VERIFIED milestones; retain impacted S6/final integration |
+| AC5 | Stash Save/Apply and external resolve → stage → reconcile, with accurate state and retained stash/recovery evidence; Pop/Drop deferred by explicit user decision to0.4.0 | Clean/conflicting/interrupted disposable fixtures and restart | PENDING revised scope |
+| AC6 | Push/upstream/ahead-behind and fast-forward-only pull, divergence/rejection shown without silently choosing strategy | Owned remote roundtrip, rejected push/divergence/auth/cancel/restart | VERIFIED Sync milestone; tracking requires explicit Fetch and upstream remains explicit Local action |
 | AC7 | Typed backend-issued authority, validated refs/raw paths, serialized shared-Git writes, external-operation preflight, journal and bounded process cleanup | Independent critical-path review and deterministic failure/concurrency tests | PENDING |
 | AC8 | Graph-centric discoverable controls, existing filter/selection/diff/refresh retained, integrated version checks/build/native production and docs | Frontend/core/native/regression plus final independent PASS | PENDING |
 
@@ -34,7 +34,7 @@ Root owns this task record, roadmap/plan/acceptance docs and tests/e2e. Planner 
 - Soft allocation: one reused planner, one normally reused critical backend worker, one normal UI worker only after frozen contracts and disjoint ownership, one reused independent reviewer. Roughly6–9 cohesive implementation packets and3 independent integration gates, revise with evidence.
 - No parallel workers without substantial documented wall-time benefit. No default budget; runtime usage unknown. No exact token/cost/savings claims.
 - Stop/reassess after two failed attempts/repair rounds on the same issue. Do not omit required failure checks or leave scope unfinished to save cost. Sol/high covers known critical work; exceptional escalation needs evidence.
-- No0.3 commit/push/tag/publication authorized. User0.2 checkpoint permission is fulfilled, not a standing publishing instruction.
+- User subsequently authorized checked development commits/pushes to the0.3 branch and baseline0.2 to master; remote refs reverified below. No tag/release publication requested.
 
 ## Dispatch / validation / review
 
@@ -316,3 +316,99 @@ Grouped Sync review CHANGES_REQUIRED sole SYNC-PULL01/P1: freshstamp sampled AFT
 ## Sync checked milestone PASS
 
 Grouped source review PASS, SYNC-PULL01/P1 independently CLOSED with Backend23.94s +normalFF55.05s +cache/migration2PASS28.85s; retains98frontend/typecheck/diff,19source/copy20logs matched. Native currentV2 `.tmp/0.3.0-sync-v2-native.log` EXIT0 on614DBA20884D01B8A72CB9BB89F5F1A4DBED5DBCA633C4CD4F8A418621877DCC: actualStageCommit→HTTPSread/authPush→FFPull→pinnedSSHagentPush→raw annotatedtagPush→remote-only conditionalDelete, exactserverobjects/HEAD/workingbytes+credentialscans PASS. Branch preserved duringtagdelete. Screenshot `.tmp/desktop-653eb94cc8ed4ba9886e96b552531943/sync-workflow.png`. Trackingrefresh/userFetch and unavailableauto-upstream explicitly documented; no release/full0.3 claim. Root prepares nextcheckeddevelopmentcheckpoint, thenpartial/amend. S6consume scope userquestionstillpending; no assumption fromsilence.
+
+## Sync checkpoint published; baseline reconfirmed
+
+Checked development checkpoint `02407a0c884b61454027673f252b3b9cbfc868f9`
+was pushed to `origin/codex/0.3.0`. On the user's latest master instruction,
+root rechecked `git ls-remote --symref origin HEAD refs/heads/master
+refs/heads/codex/0.3.0`: both remote HEAD/default and master remain exactly
+`ce5da58b7f4981b05534c917c08ddcd44c54ca3a`, the accepted0.2.0 baseline.
+No checkout/reset/force or extra master commit was necessary. S5-B is in
+progress with backend_lifecycle_fix as sole backend/contract writer;
+root owns native acceptance and docs. Existing S5-B planner packet is reused.
+No0.3 release or completed-version claim; pending stash scope is not inferred
+from silence.
+
+S5-B contract frozen by backend owner: closed eligibility and structured diff
+rows plus resolve_change_selection; TS/Rust/wire remain its sole ownership.
+Pure byte candidate4tests PASS0.01s include every small edit subset in both
+directions, repeated lines, EOF/presence and complexity limits. Root dispatched
+reused local_actions_ui Sol/medium for changes store/components/CSS and focused
+tests, while backend_lifecycle_fix Sol/high keeps backend/contract integration.
+This two-worker split overlaps substantial independent UI and index/amend work;
+no third concurrent agent or new framework. Root's proposed native harness is
+tests/e2e/partial_amend_acceptance.py, syntax checked only, not yet run. Accessible
+line/hunk/amend labels were confirmed with UI owner. One grouped independent
+review follows coherent source and native checks; no intermediate extra gate.
+
+## User-approved stash scope and S5-B handoff
+
+User answered the pending question: Save/Apply stays in0.3.0; Pop/Drop moves to0.4.0.
+Roadmap/AC5/plan are synchronized. The accepted concrete S6 packet is
+docs/plans/0.3.0-stash.md, adapted from stage_commit_plan without new research.
+This does not authorize0.4 implementation. Apply keeps stash and recovery
+evidence; no fake Abort or automatic consume.
+
+S5-B backend15files sealed854596C80A36CC2A1414D49704CF9ED7684C4E0206766665BA0F4A7D40E1B705;
+handoff .tmp/s5b-backend-handoff.json documents actual partial/amend/race/recovery
+checks, clippy/fmt PASS and serialization-delta boundary. UI8files frozen,
+45focusedtests+AppS5threePASS. Root integrated partial action outcome routing
+and two tests; combined typecheck +59tests/fivefiles PASS. Grouped independent
+review assigned reused local_slice_review; root debug/e2e build/native follows.
+
+## S5-B required repairs after independent review/native
+
+Reviewer independently ran pure7PASS0.15s, actual mixed partial75.97s,
+normal amend root/merge/detached67.08s and frontend59tests; backend15source/copy
+and15logs matched. Required S5B-AMEND01/P1: rev-list hides raw parents at a
+shallow boundary and native amend may create a root commit. Owner must reject
+unproven shallow amend before write (clear unsupported is acceptable), with
+actual Backend unchanged-HEAD/raw-parents/index/working regression. Normal
+root/merge/detached/no-op/signing evidence remains relevant.
+
+Root native immutable8146F02A4BED7C43596012B0D5713E4F3C1B7110209D3486AB19E9DEF73FAB35
+passed real stageSelection plus exact blob/unrelated/working checks, but next
+staged diff timed out. First harness omitted disabled check; corrected diagnostic
+rerun on the SAME executable proves S5B-FORM01/P2 (root preliminary alias DIFF01): unstaged diff loaded21.8s,
+staged read was loading12.1s then normal passive refresh23.1s cleared it. Log
+.tmp/0.3.0-partial-amend-native-diagnostic.log; initial failure retained separately.
+No native PASS. After two same-issue failures root changed approach rather than
+retrying: existing single interaction lease covers explicit inline diff read/
+selection through partial form, with visible Close diff, coalesced passive
+refresh and unchanged urgent/hard-revocation/explicit-reselection behavior.
+UI owner repairs component/store/tests; backend owner repairs amend guard/tests,
+disjoint ownership max2agents. Reviewer released source/Cargo after focused checks.
+S6 remains paused; no S6 source edits yet. Root will build once both repairs are
+coherent, rerun impacted native and request grouped delta re-review.
+
+S5B-AMEND01 owner repair sealed4files in .tmp/s5b-amend01-source-freeze.json
+SHA0FE31A5127B1660D7B83239BA34AB0C07D27B1E47695E35B0C604F897C0C665E;
+handoff .tmp/s5b-amend01-handoff.json SHAB0ED400EF8BC929C292152B388BF74621554BC77ED423344C0E1B4EC7C4A30AC.
+Actual regression RED10.57s→GREEN11.84s, final amend5PASS73.76s includes
+late shallow change after semantic read, normal ordered parents/author/no-op/
+SSH signing/hook failures. Existing native stamp adds shallow and is captured
+before semantic prepare; all shallow amend fails clearly before write.
+Clippy all-targets PASS28.61s; Cargo released. Independent re-review still pending,
+not self-closed. Owner may now start S6 NEW unreferenced modules only while UI
+repair completes; existing compiled/shared integration remains frozen for B.
+
+## S5-B milestone independently accepted
+
+Reviewer PASS on integrated27file inventory1CE140BF76B0BFCB29C6029F4EE53DAB7F3B6BAC99384F355CF1F3355EACAA94,
+zero source drift. S5B-AMEND01/P1 and S5B-FORM01/P2 independently CLOSED;
+reviewer actual shallow2PASS16.93s, UI66tests/fivefiles +AppS5threePASS,
+typecheck/fmt/diff;4repairsource/copies and6logs matched. Retains prior pure7,
+actual mixed75.97s and normal amend67.08s evidence, no unchanged broad reruns.
+
+Current native .tmp/0.3.0-partial-amend-native-repair.log EXIT0 SHA
+B033EE1DCEF22AAC702AE5002279A2267BE29A5ED14850A8B82DA45D8B04A143 on
+immutable6C1C693B919ADE37DCF0F9CD782EAD45CA5520D680206CAB1BEACA7DD0329FDB.
+Actual31s checkbox hold → line Stage/Unstage → hunk Stage → Commit → explicit
+message-only Amend, exact Git blobs/tree/original parent/author/unrelated index/
+working bytes and appdata message scans PASS. Screenshot
+.tmp/desktop-80f5fbf5aa534abcba574f5fe12801d4/partial-amend.png was viewed;
+it is midrefresh and does not certify final fresh catalog counts. Earlier two
+failed logs are retained; no false native success before repair. Root prepares
+checked B development commit/push, then releases existing S6 integration. This
+PASS covers B only, not S6/full0.3/release. Runtime usage/cost unknown.

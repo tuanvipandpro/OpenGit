@@ -33,3 +33,15 @@
 .remote-action-dialog .dialog-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
 .remote-action-dialog button { padding: 7px 12px; border: 1px solid #354858; border-radius: 4px; background: #1a2a37; color: inherit; }
 .remote-action-dialog button:disabled { opacity: .5; }
+
+.change-hunks { overflow: auto; max-height: 55vh; border: 1px solid #293946; }
+.change-hunk { min-width: max-content; border-bottom: 1px solid #293946; }
+.change-hunk-select { display: flex; gap: 8px; align-items: center; padding: 7px 10px; background: #17242e; font-size: 12px; }
+.change-diff-row { display: grid; grid-template-columns: 30px 40px 40px 18px minmax(200px, 1fr); align-items: start; font-size: 12px; line-height: 1.7; }
+.change-diff-row code { white-space: pre; padding-right: 14px; }
+.change-line-select { text-align: center; }
+.change-line-number { text-align: right; padding-right: 8px; color: #8aa3b5; user-select: none; }
+.change-diff-add { background: #14352d; }
+.change-diff-delete { background: #3b242c; }
+.change-no-lf { display: block; color: #d6b77b; font-style: italic; }
+.commit-form label:has(input[type="checkbox"]) { display: flex; align-items: center; gap: 8px; margin: 12px 0; }

@@ -57,6 +57,7 @@ pub(crate) fn native_stamp(location: &RepositoryLocation) -> Result<String, AppE
         location.common.join("config"),
         location.git_dir.join("config.worktree"),
         location.common.join("packed-refs"),
+        location.common.join("shallow"),
     ] {
         file(&mut h, &p)?;
     }

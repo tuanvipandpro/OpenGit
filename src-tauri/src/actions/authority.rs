@@ -534,6 +534,28 @@ impl Authority {
         }
         resolve(w, scope, intent, stamp, (self.clock)())
     }
+    pub(crate) fn change_grant(
+        &self,
+        window: &str,
+        scope: &ActionScope,
+        epoch: u64,
+        id: &str,
+        stamp: &str,
+    ) -> Result<(Target, Instant), AppError> {
+        let state = self.state.lock().map_err(|_| invalid())?;
+        let w = state.windows.get(window).ok_or_else(invalid)?;
+        let g = w.grants.get(id).ok_or_else(invalid)?;
+        if w.epoch != epoch
+            || w.scope.as_ref() != Some(scope)
+            || g.scope != *scope
+            || g.target.kind != TargetKind::Change
+            || g.stamp != stamp
+            || g.expires <= (self.clock)()
+        {
+            return Err(invalid());
+        }
+        Ok((g.target.clone(), g.expires))
+    }
     pub fn prepare(
         &self,
         window: &str,

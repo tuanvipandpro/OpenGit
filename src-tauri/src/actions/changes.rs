@@ -45,7 +45,11 @@ pub(crate) async fn output(
 pub(crate) fn supported(k: ActionKind) -> bool {
     matches!(
         k,
-        ActionKind::Stage | ActionKind::Unstage | ActionKind::Commit
+        ActionKind::Stage
+            | ActionKind::Unstage
+            | ActionKind::StageSelection
+            | ActionKind::UnstageSelection
+            | ActionKind::Commit
     )
 }
 pub(crate) fn path(location: &RepositoryLocation, raw: &[u8]) -> Result<PathBuf, AppError> {
@@ -360,6 +364,9 @@ pub(crate) fn target(c: &Capture, s: &ChangeSelection) -> Result<Target, AppErro
     })
 }
 pub(crate) fn paths(t: &Target) -> Result<(ChangeSide, Vec<Vec<u8>>), AppError> {
+    if t.kind == TargetKind::Selection {
+        return paths(&super::patch::original_target(t)?);
+    }
     let side = match t.identity.first() {
         Some(0) => ChangeSide::Unstaged,
         Some(1) => ChangeSide::Staged,
@@ -379,6 +386,9 @@ pub(crate) fn paths(t: &Target) -> Result<(ChangeSide, Vec<Vec<u8>>), AppError> 
     Ok((side, paths))
 }
 pub(crate) fn mutation_paths(t: &Target) -> Result<Vec<Vec<u8>>, AppError> {
+    if t.kind == TargetKind::Selection {
+        return mutation_paths(&super::patch::original_target(t)?);
+    }
     let (_, mut paths) = paths(t)?;
     if t.identity[1] == 0 {
         paths.truncate(1);
@@ -391,8 +401,18 @@ pub(crate) fn validate_targets(
     targets: &[Target],
 ) -> Result<(), AppError> {
     for t in targets {
+        let original = if t.kind == TargetKind::Selection {
+            super::patch::original_target(t)?
+        } else {
+            t.clone()
+        };
+        let t = &original;
         let (side, p) = paths(t)?;
-        if matches!(intent, ActionIntent::Stage { .. }) != (side == ChangeSide::Unstaged) {
+        if matches!(
+            intent,
+            ActionIntent::Stage { .. } | ActionIntent::StageSelection { .. }
+        ) != (side == ChangeSide::Unstaged)
+        {
             return Err(invalid());
         }
         let Some(SafeTargetProof::Change {
